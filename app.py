@@ -56,11 +56,15 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-@st.cache_data(ttl=60)
+# 🛡️ Caché ampliado a 300 segundos para proteger contra el límite de Google
+@st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
-    hoja = obtener_hoja(nombre_hoja)
-    datos = hoja.get_all_records()
-    return pd.DataFrame(datos) if datos else pd.DataFrame()
+    try:
+        hoja = obtener_hoja(nombre_hoja)
+        datos = hoja.get_all_records()
+        return pd.DataFrame(datos) if datos else pd.DataFrame()
+    except Exception:
+        return pd.DataFrame()
 
 def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
@@ -340,7 +344,6 @@ with tab1:
                                     fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
                                     sesiones_logradas += 1
                                     
-                                    # 🛑 Pausa de 0.3 segundos para que Google Sheets no bloquee por velocidad
                                     time.sleep(0.3)
                                 else:
                                     fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
@@ -400,8 +403,11 @@ with tab2:
     
     st.markdown("---")
     hoja_notas = obtener_hoja("Notas")
-    nota_guardada_obj = hoja_notas.acell('A1')
-    notas_guardadas = nota_guardada_obj.value if nota_guardada_obj.value else ""
+    try:
+        nota_guardada_obj = hoja_notas.acell('A1')
+        notas_guardadas = nota_guardada_obj.value if nota_guardada_obj.value else ""
+    except:
+        notas_guardadas = ""
     
     notas_actuales = st.text_area("Notas Rápidas Generales:", value=notas_guardadas, height=150)
     
