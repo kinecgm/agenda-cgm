@@ -55,7 +55,6 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🚀 MEJORA ANTI-COLAPSO: Memoria Caché de 60 segundos
 @st.cache_data(ttl=60)
 def cargar_tabla(nombre_hoja):
     hoja = obtener_hoja(nombre_hoja)
@@ -67,7 +66,6 @@ def guardar_tabla(nombre_hoja, df):
     hoja.clear()
     if not df.empty:
         hoja.update([df.columns.values.tolist()] + df.values.tolist())
-    # Limpiamos la memoria para que los datos nuevos aparezcan de inmediato
     st.cache_data.clear()
 
 # --- MEMORIA DE LA APLICACIÓN ---
@@ -113,8 +111,8 @@ def cargar_datos_clinica(fecha):
     if not df_completo.empty and 'Fecha' in df_completo.columns:
         df_dia = df_completo[df_completo['Fecha'] == fecha]
         if not df_dia.empty:
-            df_dia = df_dia.drop(columns=['Fecha'])
-            return df_dia
+            # EL ARREGLO ESTÁ AQUÍ ABAJO (reset_index)
+            return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
 
     return pd.DataFrame({
         "Hora": horas_30_min, "Paciente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
@@ -128,7 +126,8 @@ def cargar_datos_personal(fecha):
     if not df_completo.empty and 'Fecha' in df_completo.columns:
         df_dia = df_completo[df_completo['Fecha'] == fecha]
         if not df_dia.empty:
-            return df_dia.drop(columns=['Fecha'])
+            # EL ARREGLO ESTÁ AQUÍ ABAJO (reset_index)
+            return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
 
     return pd.DataFrame({
         "Hora": horas_30_min, "Actividad": [""] * len(horas_30_min), 
