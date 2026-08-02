@@ -5,6 +5,7 @@ import urllib.parse
 import gspread
 from google.oauth2.service_account import Credentials
 import json
+import time
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
@@ -295,7 +296,7 @@ with tab1:
                 fechas_exitosas, fechas_ocupadas = [], []
                 dias_buscados = 0
 
-                with st.spinner('Revisando disponibilidad en la nube...'):
+                with st.spinner('Revisando disponibilidad en la nube (con control de velocidad)...'):
                     while sesiones_logradas < m_sesiones and dias_buscados < 365:
                         if fecha_iter.weekday() in dias_obj:
                             f_str = fecha_iter.strftime("%Y-%m-%d")
@@ -338,6 +339,9 @@ with tab1:
                                     
                                     fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
                                     sesiones_logradas += 1
+                                    
+                                    # 🛑 Pausa de 0.3 segundos para que Google Sheets no bloquee por velocidad
+                                    time.sleep(0.3)
                                 else:
                                     fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
                                 
