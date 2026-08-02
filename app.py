@@ -10,8 +10,8 @@ st.title("📅 Agenda Kinesiología CGM")
 
 # Función para conectar a Google Sheets
 def conectar_sheets():
-    # Leemos la llave secreta que guardaste
-    credenciales_json = json.loads(st.secrets["gcp_credentials"])
+    # El secreto está aquí: strict=False hace que ignore los errores de formato del Mac
+    credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive"
