@@ -55,6 +55,8 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
+# 🚀 MEJORA ANTI-COLAPSO: Memoria Caché de 60 segundos
+@st.cache_data(ttl=60)
 def cargar_tabla(nombre_hoja):
     hoja = obtener_hoja(nombre_hoja)
     datos = hoja.get_all_records()
@@ -65,6 +67,8 @@ def guardar_tabla(nombre_hoja, df):
     hoja.clear()
     if not df.empty:
         hoja.update([df.columns.values.tolist()] + df.values.tolist())
+    # Limpiamos la memoria para que los datos nuevos aparezcan de inmediato
+    st.cache_data.clear()
 
 # --- MEMORIA DE LA APLICACIÓN ---
 if "fecha_memoria" not in st.session_state:
@@ -112,7 +116,6 @@ def cargar_datos_clinica(fecha):
             df_dia = df_dia.drop(columns=['Fecha'])
             return df_dia
 
-    # Molde vacío si no hay datos
     return pd.DataFrame({
         "Hora": horas_30_min, "Paciente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
         "Dirección": [""] * len(horas_30_min), "Minutos de Viaje": [0] * len(horas_30_min), 
@@ -234,7 +237,6 @@ for index in df_clinica.index:
         df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""
         df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"
 
-    # CONTROL DE ESTADOS Y ESPEJO PERSONAL
     if actividad_personal != "" and (hay_paciente or es_cita_clinica):
         df_clinica.at[index, 'Estado'] = "⚠️ TOPE HORARIO ⚠️"
     elif actividad_personal != "":
@@ -244,7 +246,6 @@ for index in df_clinica.index:
     elif es_cita_clinica or hay_paciente: df_clinica.at[index, 'Estado'] = "Agendado 🔒"
     elif es_almuerzo: df_clinica.at[index, 'Estado'] = "-"
     else:
-        # Fantasmas
         if index > 0:
             paciente_ant = str(df_clinica.at[index - 1, 'Paciente']).strip()
             detalle_ant = str(df_clinica.at[index - 1, 'Detalle / Motivo']).strip()
@@ -262,7 +263,6 @@ for index in df_clinica.index:
                 df_clinica.at[index, 'Estado'] = f"En sesión ({nombre_sesion}) ⏳"
                 continue
         df_clinica.at[index, 'Estado'] = "Libre 🟢"
-
 
 # --- SISTEMA DE PESTAÑAS ---
 tab1, tab2, tab3 = st.tabs(["🩺 Calendario Clínico", "🕰️ Horario Personal", "📁 Fichas Clínicas"])
@@ -372,7 +372,6 @@ with tab1:
         }
     )
     
-    # Comprobación de cambios
     if not df_clinica.equals(df_clinica_editado): 
         guardar_dia("Clinica", fecha_str, df_clinica_editado)
         st.rerun()
@@ -397,7 +396,6 @@ with tab2:
         st.rerun()
     
     st.markdown("---")
-    # Manejo de notas en la nube
     hoja_notas = obtener_hoja("Notas")
     nota_guardada_obj = hoja_notas.acell('A1')
     notas_guardadas = nota_guardada_obj.value if nota_guardada_obj.value else ""
