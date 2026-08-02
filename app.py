@@ -111,7 +111,6 @@ def cargar_datos_clinica(fecha):
     if not df_completo.empty and 'Fecha' in df_completo.columns:
         df_dia = df_completo[df_completo['Fecha'] == fecha]
         if not df_dia.empty:
-            # EL ARREGLO ESTÁ AQUÍ ABAJO (reset_index)
             return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
 
     return pd.DataFrame({
@@ -126,7 +125,6 @@ def cargar_datos_personal(fecha):
     if not df_completo.empty and 'Fecha' in df_completo.columns:
         df_dia = df_completo[df_completo['Fecha'] == fecha]
         if not df_dia.empty:
-            # EL ARREGLO ESTÁ AQUÍ ABAJO (reset_index)
             return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
 
     return pd.DataFrame({
@@ -371,8 +369,9 @@ with tab1:
         }
     )
     
-    if not df_clinica.equals(df_clinica_editado): 
+    if st.button("💾 Guardar Cambios Clínicos del Día"):
         guardar_dia("Clinica", fecha_str, df_clinica_editado)
+        st.success("¡Agenda guardada con éxito en la nube!")
         st.rerun()
 
 with tab2:
@@ -390,8 +389,9 @@ with tab2:
         }
     )
     
-    if not df_personal.equals(df_personal_editado):
+    if st.button("💾 Guardar Cambios del Horario Personal"):
         guardar_dia("Personal", fecha_str, df_personal_editado)
+        st.success("¡Horario guardado con éxito en la nube!")
         st.rerun()
     
     st.markdown("---")
@@ -400,8 +400,10 @@ with tab2:
     notas_guardadas = nota_guardada_obj.value if nota_guardada_obj.value else ""
     
     notas_actuales = st.text_area("Notas Rápidas Generales:", value=notas_guardadas, height=150)
-    if notas_actuales != notas_guardadas:
+    
+    if st.button("💾 Guardar Notas Generales"):
         hoja_notas.update_acell('A1', notas_actuales)
+        st.success("¡Notas actualizadas!")
 
 with tab3:
     st.header("📁 Fichas Clínicas y Evolución de Pacientes")
