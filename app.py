@@ -272,7 +272,13 @@ for index in df_clinica.index:
 tab1, tab2, tab3 = st.tabs(["🩺 Calendario Clínico", "🕰️ Horario Personal", "📁 Fichas Clínicas"])
 
 with tab1:
-    st.header(f"📅 Agenda Clínica - {fecha_visual}")
+    # ⬆️ BOTÓN EN LA PARTE SUPERIOR ⬆️
+    col_t1, col_t2 = st.columns([3, 1])
+    with col_t1:
+        st.header(f"📅 Agenda Clínica - {fecha_visual}")
+    with col_t2:
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary")
     
     with st.expander("🔄 Agendamiento Múltiple (Programar Paquetes)"):
         st.markdown("Agendamiento inteligente: La app revisará tanto el Calendario Clínico como tus bloqueos del Horario Personal para no generar topes.")
@@ -346,6 +352,7 @@ with tab1:
                                     fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
                                     sesiones_logradas += 1
                                     
+                                    import time
                                     time.sleep(0.3)
                                 else:
                                     fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
@@ -378,13 +385,21 @@ with tab1:
         }
     )
     
-    if st.button("💾 Guardar Cambios Clínicos del Día"):
+    # El botón se activará acá abajo en el código, pero visualmente está arriba
+    if btn_guardar_clinica:
         guardar_dia("Clinica", fecha_str, df_clinica_editado)
         st.success("¡Agenda guardada con éxito en la nube!")
         st.rerun()
 
 with tab2:
-    st.header(f"🕰️ Horario Personal - {fecha_visual}")
+    # ⬆️ BOTÓN EN LA PARTE SUPERIOR ⬆️
+    col_p1, col_p2 = st.columns([3, 1])
+    with col_p1:
+        st.header(f"🕰️ Horario Personal - {fecha_visual}")
+    with col_p2:
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        btn_guardar_personal = st.button("💾 Guardar Horario Personal", use_container_width=True, type="primary")
+        
     st.markdown("Escribe tus bloques de estudio, salidas o descansos aquí. Se bloquearán automáticamente en el Calendario Clínico.")
     
     df_personal_editado = st.data_editor(
@@ -398,12 +413,20 @@ with tab2:
         }
     )
     
-    if st.button("💾 Guardar Cambios del Horario Personal"):
+    if btn_guardar_personal:
         guardar_dia("Personal", fecha_str, df_personal_editado)
         st.success("¡Horario guardado con éxito en la nube!")
         st.rerun()
     
     st.markdown("---")
+    
+    # ⬆️ BOTÓN DE NOTAS TAMBIÉN ARRIBA ⬆️
+    col_n1, col_n2 = st.columns([3, 1])
+    with col_n1:
+        st.markdown("### 📝 Notas Rápidas Generales")
+    with col_n2:
+        btn_guardar_notas = st.button("💾 Guardar Notas", use_container_width=True, type="primary")
+
     hoja_notas = obtener_hoja("Notas")
     try:
         nota_guardada_obj = hoja_notas.acell('A1')
@@ -411,11 +434,57 @@ with tab2:
     except:
         notas_guardadas = ""
     
-    notas_actuales = st.text_area("Notas Rápidas Generales:", value=notas_guardadas, height=150)
+    notas_actuales = st.text_area("Escribe aquí:", value=notas_guardadas, height=150, label_visibility="collapsed")
     
-    if st.button("💾 Guardar Notas Generales"):
+    if btn_guardar_notas:
         hoja_notas.update_acell('A1', notas_actuales)
         st.success("¡Notas actualizadas!")
+
+with tab3:
+    st.header("📁 Fichas Clínicas y Evolución de Pacientes")
+    lista_pacientes = obtener_lista_pacientes()
+    if not lista_pacientes: st.info("Agrega un paciente en el Calendario Clínico para comenzar.")
+    else:
+        paciente_seleccionado = st.selectbox("🔍 Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes)
+        if paciente_seleccionado != "-- Selecciona --":
+            df_fichas = cargar_tabla("Fichas")
+            if df_fichas.empty or 'Paciente' not in df_fichas.columns:
+                df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas'])
+                
+            if paciente_seleccionado not in df_fichas['Paciente'].values:
+                nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""]})
+                df_fichas = pd.concat([df_fichas, nueva_fila], ignore_index=True)
+                guardar_tabla("Fichas", df_fichas)
+                
+            idx_ficha = df_fichas.index[df_fichas['Paciente'] == paciente_seleccionado][0]
+            tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(paciente_seleccionado)
+            
+            st.markdown("---")
+            st.markdown(f"### 📊 Resumen Financiero: **{paciente_seleccionado}**")
+            col_met1, col_met2, col_met3 = st.columns(3)
+            col_met1.metric("Total Sesiones", tot_sesiones)
+            col_met2.metric("Sesiones Pagadas ✅", tot_pagadas)
+            col_met3.metric("Sesiones Adeudadas ❌", tot_adeudadas)
+            
+            st.markdown("---")
+            with st.form(key=f"form_ficha_{paciente_seleccionado}"):
+                col_f1, col_f2 = st.columns(2)
+                with col_f1:
+                    nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_fichas.at[idx_ficha, 'Teléfono']))
+                    nueva_edad = st.text_input("🎂 Edad:", value=str(df_fichas.at[idx_ficha, 'Edad']))
+                with col_f2:
+                    nuevo_diag = st.text_input("🩺 Motivo de Consulta:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']))
+                
+                nuevas_notas = st.text_area("✍️ Block de Notas (Evolución, OMNI-RES, RIR):", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']), height=250)
+                guardar_btn = st.form_submit_button("💾 Guardar Ficha Clínica")
+                
+                if guardar_btn:
+                    df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel.replace('nan', '')
+                    df_fichas.at[idx_ficha, 'Edad'] = nueva_edad.replace('nan', '')
+                    df_fichas.at[idx_ficha, 'Diagnóstico'] = nuevo_diag.replace('nan', '')
+                    df_fichas.at[idx_ficha, 'Notas Clínicas'] = nuevas_notas.replace('nan', '')
+                    guardar_tabla("Fichas", df_fichas)
+                    st.success("¡Ficha actualizada de forma segura en la nube!")
 
 with tab3:
     st.header("📁 Fichas Clínicas y Evolución de Pacientes")
