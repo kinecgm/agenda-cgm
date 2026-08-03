@@ -70,7 +70,9 @@ def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
-        hoja.update([df.columns.values.tolist()] + df.values.tolist())
+        # 🧹 LA BARREDORA: Convertimos los vacíos (NaN) a texto en blanco para que Google no colapse
+        df_limpio = df.fillna("")
+        hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
 # --- MEMORIA DE LA APLICACIÓN ---
