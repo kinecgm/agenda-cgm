@@ -330,8 +330,8 @@ with tab1:
     with st.expander("📍 Configuración de Viajes y Alarmas"):
         st.markdown("**1. Activa tu GPS (Permite el acceso a la ubicación si el navegador te lo pide):**")
         
-        # Botón mágico para sacar el GPS del celular/computador
-        ubicacion_gps = streamlit_geolocation(key="mi_gps_actual")
+        # Botón mágico para sacar el GPS del celular/computador (¡Corregido!)
+        ubicacion_gps = streamlit_geolocation()
         
         st.markdown("**2. O escribe una dirección de salida manual (si no usas el GPS):**")
         direccion_base = st.text_input("Tu base:", value="Gomez Carreño, Viña del Mar")
