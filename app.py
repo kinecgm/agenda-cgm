@@ -8,6 +8,7 @@ import json
 import time
 from geopy.geocoders import Nominatim
 from geopy.distance import geodesic
+from streamlit_geolocation import streamlit_geolocation
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
@@ -58,7 +59,7 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ Caché ampliado
+# 🛡️ Caché ampliado a 300 segundos
 @st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
     try:
@@ -72,7 +73,7 @@ def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
-        # 🧹 LA BARREDORA
+        # 🧹 LA BARREDORA: Convierte NaN en texto vacío para Google Sheets
         df_limpio = df.fillna("")
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
@@ -141,18 +142,27 @@ def cargar_datos_personal(fecha):
         "Categoría": ["-"] * len(horas_30_min), "Notas": [""] * len(horas_30_min)
     })
 
-# --- FUNCIÓN MATEMÁTICA PARA RUTAS ---
-def calcular_tiempo_y_alarma(origen, destino, fecha_string, hora_string):
+# --- FUNCIÓN MATEMÁTICA PARA RUTAS CON GPS ---
+def calcular_tiempo_y_alarma(origen_coords_o_texto, destino, fecha_string, hora_string):
     try:
         geolocator = Nominatim(user_agent="sustancia_x_agenda", timeout=5)
-        loc_origen = geolocator.geocode(origen + ", Valparaiso, Chile")
+        
+        # 1. Definimos el punto de origen (por GPS o por texto)
+        if isinstance(origen_coords_o_texto, tuple):
+            coords_1 = origen_coords_o_texto # Ya son coordenadas exactas del GPS
+        else:
+            loc_origen = geolocator.geocode(origen_coords_o_texto + ", Valparaiso, Chile")
+            if not loc_origen: return 0, "", ""
+            coords_1 = (loc_origen.latitude, loc_origen.longitude)
+
+        # 2. Buscamos el destino del paciente
         loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
         
-        if loc_origen and loc_destino:
-            coords_1 = (loc_origen.latitude, loc_origen.longitude)
+        if loc_destino:
             coords_2 = (loc_destino.latitude, loc_destino.longitude)
             distancia_km = geodesic(coords_1, coords_2).kilometers
             
+            # Asumimos 2.5 min por km en ciudad + 5 min fijos
             minutos_estimados = int((distancia_km * 2.5) + 5)
             
             tiempo_agendado = datetime.strptime(hora_string, "%H:%M")
@@ -316,17 +326,31 @@ with tab1:
         st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
         btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary", key="btn_save_clinica")
     
-    # --- NUEVO: CONFIGURACIÓN DE VIAJES Y ALARMAS ---
+    # --- NUEVO: CONFIGURACIÓN DE VIAJES Y ALARMAS (CON GPS) ---
     with st.expander("📍 Configuración de Viajes y Alarmas"):
-        direccion_base = st.text_input("¿Desde dónde iniciarás tus viajes hoy? (Tu base):", value="Gomez Carreño, Viña del Mar")
+        st.markdown("**1. Activa tu GPS (Permite el acceso a la ubicación si el navegador te lo pide):**")
+        
+        # Botón mágico para sacar el GPS del celular/computador
+        ubicacion_gps = streamlit_geolocation(key="mi_gps_actual")
+        
+        st.markdown("**2. O escribe una dirección de salida manual (si no usas el GPS):**")
+        direccion_base = st.text_input("Tu base:", value="Gomez Carreño, Viña del Mar")
+        
         if st.button("⚡ Calcular Tiempos Automáticamente para hoy"):
             with st.spinner("Calculando rutas y generando alarmas..."):
+                
+                # Decidimos si usamos el GPS súper preciso, o el texto manual
+                origen_final = direccion_base
+                if ubicacion_gps and ubicacion_gps.get('latitude') is not None:
+                    origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
+                    st.info("🛰️ Coordenadas GPS obtenidas con éxito. Calculando distancias exactas...")
+                
                 for idx in df_clinica.index:
                     dir_paciente = str(df_clinica.at[idx, 'Dirección']).strip()
                     hora_paciente = str(df_clinica.at[idx, 'Hora']).strip()
                     
                     if dir_paciente != "":
-                        minutos, h_salida, link_alarma = calcular_tiempo_y_alarma(direccion_base, dir_paciente, fecha_str, hora_paciente)
+                        minutos, h_salida, link_alarma = calcular_tiempo_y_alarma(origen_final, dir_paciente, fecha_str, hora_paciente)
                         if minutos > 0:
                             df_clinica.at[idx, 'Minutos de Viaje'] = minutos
                             df_clinica.at[idx, 'Hora de Salida'] = h_salida
@@ -528,6 +552,7 @@ with tab3:
                 with col_f2:
                     nuevo_diag = st.text_input("🩺 Motivo de Consulta:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']))
                 
+                # Expandimos las notas clínicas para el registro RIR y OMNI-RES de la Tesis
                 nuevas_notas = st.text_area("✍️ Block de Notas (Evolución, OMNI-RES, RIR):", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']), height=250)
                 guardar_btn = st.form_submit_button("💾 Guardar Ficha Clínica")
                 
