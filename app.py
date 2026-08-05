@@ -6,6 +6,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 import json
 import time
+from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
@@ -56,7 +58,7 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ Caché ampliado a 300 segundos para proteger contra el límite de Google
+# 🛡️ Caché ampliado
 @st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
     try:
@@ -70,7 +72,7 @@ def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
-        # 🧹 LA BARREDORA: Convertimos los vacíos (NaN) a texto en blanco para que Google no colapse
+        # 🧹 LA BARREDORA
         df_limpio = df.fillna("")
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
@@ -112,42 +114,7 @@ def guardar_dia(tipo, fecha, df_dia):
     else:
         df_final = df_guardar
     guardar_tabla(tipo, df_final)
-from geopy.geocoders import Nominatim
-from geopy.distance import geodesic
 
-def calcular_tiempo_y_alarma(origen, destino, fecha_str, hora_str):
-    try:
-        # 1. Buscamos las coordenadas (Usamos un agente gratuito)
-        geolocator = Nominatim(user_agent="agenda_kine_cgm")
-        loc_origen = geolocator.geocode(origen + ", Valparaiso, Chile")
-        loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
-        
-        if loc_origen and loc_destino:
-            # 2. Calculamos distancia y tiempo estimado (Tráfico Viña/Quilpué)
-            coords_1 = (loc_origen.latitude, loc_origen.longitude)
-            coords_2 = (loc_destino.latitude, loc_destino.longitude)
-            distancia_km = geodesic(coords_1, coords_2).kilometers
-            
-            # Asumimos 2.5 min por km en ciudad + 5 min de preparación/estacionamiento
-            minutos_estimados = int((distancia_km * 2.5) + 5)
-            
-            # 3. Calculamos la hora exacta de salida
-            tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
-            tiempo_salida = tiempo_agendado - timedelta(minutes=minutos_estimados)
-            hora_salida_str = tiempo_salida.strftime("%H:%M")
-            
-            # 4. Generamos el link mágico de alarma para Google Calendar
-            formato_fecha = fecha_str.replace("-", "")
-            hora_inicio_cal = tiempo_salida.strftime("%H%M%S")
-            hora_fin_cal = tiempo_agendado.strftime("%H%M%S")
-            
-            enlace_alarma = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text=🚗+SALIR:+Paciente&dates={formato_fecha}T{hora_inicio_cal}/{formato_fecha}T{hora_fin_cal}&details=Hora+de+salir+hacia:+{destino}"
-            
-            return minutos_estimados, hora_salida_str, enlace_alarma
-    except:
-        pass
-    return 0, "", ""
-    
 def cargar_datos_clinica(fecha):
     df_completo = cargar_tabla("Clinica")
     if not df_completo.empty and 'Fecha' in df_completo.columns:
@@ -173,6 +140,35 @@ def cargar_datos_personal(fecha):
         "Hora": horas_30_min, "Actividad": [""] * len(horas_30_min), 
         "Categoría": ["-"] * len(horas_30_min), "Notas": [""] * len(horas_30_min)
     })
+
+# --- FUNCIÓN MATEMÁTICA PARA RUTAS ---
+def calcular_tiempo_y_alarma(origen, destino, fecha_string, hora_string):
+    try:
+        geolocator = Nominatim(user_agent="sustancia_x_agenda", timeout=5)
+        loc_origen = geolocator.geocode(origen + ", Valparaiso, Chile")
+        loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
+        
+        if loc_origen and loc_destino:
+            coords_1 = (loc_origen.latitude, loc_origen.longitude)
+            coords_2 = (loc_destino.latitude, loc_destino.longitude)
+            distancia_km = geodesic(coords_1, coords_2).kilometers
+            
+            minutos_estimados = int((distancia_km * 2.5) + 5)
+            
+            tiempo_agendado = datetime.strptime(hora_string, "%H:%M")
+            tiempo_salida = tiempo_agendado - timedelta(minutes=minutos_estimados)
+            hora_salida_str = tiempo_salida.strftime("%H:%M")
+            
+            formato_fecha = fecha_string.replace("-", "")
+            hora_inicio_cal = tiempo_salida.strftime("%H%M%S")
+            hora_fin_cal = tiempo_agendado.strftime("%H%M%S")
+            
+            enlace_alarma = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text=🚗+SALIR:+Paciente&dates={formato_fecha}T{hora_inicio_cal}/{formato_fecha}T{hora_fin_cal}&details=Hora+de+salir+hacia:+{destino}"
+            
+            return minutos_estimados, hora_salida_str, enlace_alarma
+    except Exception:
+        pass
+    return 0, "", ""
 
 # --- FUNCIONES DE ESTADÍSTICAS ---
 def obtener_lista_pacientes():
@@ -241,6 +237,7 @@ for index in df_clinica.index:
     pago_actual = str(df_clinica.at[index, 'Pago']).strip()
     sesion_actual = str(df_clinica.at[index, 'N° Sesión']).strip()
     detalle_actual = str(df_clinica.at[index, 'Detalle / Motivo']).strip()
+    ruta_actual = str(df_clinica.at[index, 'Ruta Maps']).strip()
     
     actividad_personal = str(df_personal.at[index, 'Actividad']).strip() if index < len(df_personal) else ""
     
@@ -251,10 +248,14 @@ for index in df_clinica.index:
     hay_paciente = (paciente != "" and not es_almuerzo)
     
     if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
-        if direccion != "":
-            query_maps = urllib.parse.quote(direccion + ", Chile")
-            df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
-        else: df_clinica.at[index, 'Ruta Maps'] = ""
+        # Solo actualizamos el mapa si no es un link de calendario
+        if "calendar.google.com" not in ruta_actual:
+            if direccion != "":
+                query_maps = urllib.parse.quote(direccion + ", Chile")
+                df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
+            else: 
+                df_clinica.at[index, 'Ruta Maps'] = ""
+                
         try:
             tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
             tiempo_salida = tiempo_agendado - timedelta(minutes=(minutos + 4))
@@ -315,6 +316,26 @@ with tab1:
         st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
         btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary", key="btn_save_clinica")
     
+    # --- NUEVO: CONFIGURACIÓN DE VIAJES Y ALARMAS ---
+    with st.expander("📍 Configuración de Viajes y Alarmas"):
+        direccion_base = st.text_input("¿Desde dónde iniciarás tus viajes hoy? (Tu base):", value="Gomez Carreño, Viña del Mar")
+        if st.button("⚡ Calcular Tiempos Automáticamente para hoy"):
+            with st.spinner("Calculando rutas y generando alarmas..."):
+                for idx in df_clinica.index:
+                    dir_paciente = str(df_clinica.at[idx, 'Dirección']).strip()
+                    hora_paciente = str(df_clinica.at[idx, 'Hora']).strip()
+                    
+                    if dir_paciente != "":
+                        minutos, h_salida, link_alarma = calcular_tiempo_y_alarma(direccion_base, dir_paciente, fecha_str, hora_paciente)
+                        if minutos > 0:
+                            df_clinica.at[idx, 'Minutos de Viaje'] = minutos
+                            df_clinica.at[idx, 'Hora de Salida'] = h_salida
+                            df_clinica.at[idx, 'Ruta Maps'] = link_alarma
+                
+                guardar_dia("Clinica", fecha_str, df_clinica)
+                st.success("¡Tiempos calculados y alarmas generadas!")
+                st.rerun()
+
     with st.expander("🔄 Agendamiento Múltiple (Programar Paquetes)"):
         st.markdown("Agendamiento inteligente: La app revisará tanto el Calendario Clínico como tus bloqueos del Horario Personal para no generar topes.")
         col_m1, col_m2, col_m3 = st.columns(3)
@@ -412,7 +433,7 @@ with tab1:
             "Dirección": st.column_config.TextColumn("Dirección"),
             "Minutos de Viaje": st.column_config.NumberColumn("Minutos Viaje ⏱️", min_value=0, step=1),
             "Hora de Salida": st.column_config.TextColumn("Hora de Salida ⏰", disabled=True),
-            "Ruta Maps": st.column_config.LinkColumn("🗺️ Navegación", disabled=True, display_text="Abrir Mapa"),
+            "Ruta Maps": st.column_config.LinkColumn("🗺️ Navegación / 🔔 Alarma", disabled=True, display_text="Abrir Ruta/Alarma"),
             "Estado": st.column_config.TextColumn("Estado", disabled=True),
             "N° Sesión": st.column_config.TextColumn("N° Sesión", help="Calculado automáticamente."),
             "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
@@ -476,7 +497,6 @@ with tab3:
     lista_pacientes = obtener_lista_pacientes()
     if not lista_pacientes: st.info("Agrega un paciente en el Calendario Clínico para comenzar.")
     else:
-        # PROTECCIÓN AÑADIDA AQUÍ: key="selector_paciente_unico"
         paciente_seleccionado = st.selectbox("🔍 Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes, key="selector_paciente_unico")
         
         if paciente_seleccionado != "-- Selecciona --":
