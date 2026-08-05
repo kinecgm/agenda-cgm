@@ -142,6 +142,20 @@ def cargar_datos_personal(fecha):
         "Categoría": ["-"] * len(horas_30_min), "Notas": [""] * len(horas_30_min)
     })
 
+# --- 🔗 HELPER DE SINCRONIZACIÓN POR HORA (fix de índices) ---
+def obtener_actividad_por_hora(df_personal):
+    """
+    Devuelve un mapa {hora: actividad} en vez de depender de la posición (índice)
+    de la fila. Esto evita que un borrado/agregado de fila en un data_editor
+    (num_rows='dynamic') desalinee los cruces entre Clínica y Personal.
+    """
+    if df_personal.empty or 'Hora' not in df_personal.columns:
+        return {}
+    return dict(zip(
+        df_personal['Hora'].astype(str).str.strip(),
+        df_personal['Actividad'].astype(str).str.strip()
+    ))
+
 # --- FUNCIÓN MATEMÁTICA PARA RUTAS CON GPS ---
 def calcular_tiempo_y_alarma(origen_coords_o_texto, destino, fecha_string, hora_string):
     try:
@@ -211,7 +225,7 @@ def calcular_sesion_historica(nombre_paciente, fecha_actual, hora_actual):
     if df_completo.empty or 'Paciente' not in df_completo.columns: return "1"
     
     df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & 
-                          (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+                          (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))].copy()
     
     if df_hist.empty: return "1"
     
@@ -239,6 +253,8 @@ df_personal['Categoría'] = df_personal['Categoría'].fillna("-").astype(str)
 df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
 # --- 🤖 MAGIA AUTOMÁTICA DEL CALENDARIO ---
+mapa_personal = obtener_actividad_por_hora(df_personal)  # 🔗 cruce por Hora, no por índice
+
 for index in df_clinica.index:
     paciente = str(df_clinica.at[index, 'Paciente']).strip()
     direccion = str(df_clinica.at[index, 'Dirección']).strip()
@@ -249,7 +265,7 @@ for index in df_clinica.index:
     detalle_actual = str(df_clinica.at[index, 'Detalle / Motivo']).strip()
     ruta_actual = str(df_clinica.at[index, 'Ruta Maps']).strip()
     
-    actividad_personal = str(df_personal.at[index, 'Actividad']).strip() if index < len(df_personal) else ""
+    actividad_personal = mapa_personal.get(hora_str, "")  # 🔗 antes: df_personal.at[index, 'Actividad']
     
     es_tramite = (detalle_actual == "Personal / Trámite 🛑")
     es_gimnasio = (detalle_actual == "Gimnasio 🏋️")
@@ -326,11 +342,11 @@ with tab1:
         st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
         btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary", key="btn_save_clinica")
     
-    # --- NUEVO: CONFIGURACIÓN DE VIAJES Y ALARMAS (CON GPS) ---
+    # --- CONFIGURACIÓN DE VIAJES Y ALARMAS (CON GPS) ---
     with st.expander("📍 Configuración de Viajes y Alarmas"):
         st.markdown("**1. Activa tu GPS (Permite el acceso a la ubicación si el navegador te lo pide):**")
         
-        # Botón mágico para sacar el GPS del celular/computador (¡Corregido!)
+        # Botón mágico para sacar el GPS del celular/computador
         ubicacion_gps = streamlit_geolocation()
         
         st.markdown("**2. O escribe una dirección de salida manual (si no usas el GPS):**")
@@ -394,6 +410,7 @@ with tab1:
                             f_str = fecha_iter.strftime("%Y-%m-%d")
                             df_dia_futuro = cargar_datos_clinica(f_str)
                             df_pers_futuro = cargar_datos_personal(f_str)
+                            mapa_personal_futuro = obtener_actividad_por_hora(df_pers_futuro)  # 🔗 cruce por Hora
                             idx_hora = df_dia_futuro.index[df_dia_futuro['Hora'] == m_hora].tolist()
                             
                             if idx_hora:
@@ -402,7 +419,7 @@ with tab1:
                                 
                                 p_act = str(df_dia_futuro.at[idx, 'Paciente']).strip()
                                 d_act = str(df_dia_futuro.at[idx, 'Detalle / Motivo']).strip()
-                                a_act = str(df_pers_futuro.at[idx, 'Actividad']).strip() if idx < len(df_pers_futuro) else ""
+                                a_act = mapa_personal_futuro.get(m_hora, "")  # 🔗 antes: df_pers_futuro.at[idx, 'Actividad']
                                 if p_act != "" or d_act in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or a_act != "": 
                                     ocupado = True
                                 
@@ -415,7 +432,8 @@ with tab1:
                                 if idx < len(df_dia_futuro) - 1 and not ocupado:
                                     p_sig = str(df_dia_futuro.at[idx+1, 'Paciente']).strip()
                                     d_sig = str(df_dia_futuro.at[idx+1, 'Detalle / Motivo']).strip()
-                                    a_sig = str(df_pers_futuro.at[idx+1, 'Actividad']).strip() if (idx+1) < len(df_pers_futuro) else ""
+                                    hora_sig = str(df_dia_futuro.at[idx+1, 'Hora']).strip()  # 🔗 hora real de la fila siguiente
+                                    a_sig = mapa_personal_futuro.get(hora_sig, "")  # 🔗 antes: df_pers_futuro.at[idx+1, 'Actividad']
                                     if p_sig != "" or d_sig in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or a_sig != "":
                                         ocupado = True
 
