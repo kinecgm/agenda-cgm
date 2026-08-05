@@ -112,7 +112,42 @@ def guardar_dia(tipo, fecha, df_dia):
     else:
         df_final = df_guardar
     guardar_tabla(tipo, df_final)
+from geopy.geocoders import Nominatim
+from geopy.distance import geodesic
 
+def calcular_tiempo_y_alarma(origen, destino, fecha_str, hora_str):
+    try:
+        # 1. Buscamos las coordenadas (Usamos un agente gratuito)
+        geolocator = Nominatim(user_agent="agenda_kine_cgm")
+        loc_origen = geolocator.geocode(origen + ", Valparaiso, Chile")
+        loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
+        
+        if loc_origen and loc_destino:
+            # 2. Calculamos distancia y tiempo estimado (Tráfico Viña/Quilpué)
+            coords_1 = (loc_origen.latitude, loc_origen.longitude)
+            coords_2 = (loc_destino.latitude, loc_destino.longitude)
+            distancia_km = geodesic(coords_1, coords_2).kilometers
+            
+            # Asumimos 2.5 min por km en ciudad + 5 min de preparación/estacionamiento
+            minutos_estimados = int((distancia_km * 2.5) + 5)
+            
+            # 3. Calculamos la hora exacta de salida
+            tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
+            tiempo_salida = tiempo_agendado - timedelta(minutes=minutos_estimados)
+            hora_salida_str = tiempo_salida.strftime("%H:%M")
+            
+            # 4. Generamos el link mágico de alarma para Google Calendar
+            formato_fecha = fecha_str.replace("-", "")
+            hora_inicio_cal = tiempo_salida.strftime("%H%M%S")
+            hora_fin_cal = tiempo_agendado.strftime("%H%M%S")
+            
+            enlace_alarma = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text=🚗+SALIR:+Paciente&dates={formato_fecha}T{hora_inicio_cal}/{formato_fecha}T{hora_fin_cal}&details=Hora+de+salir+hacia:+{destino}"
+            
+            return minutos_estimados, hora_salida_str, enlace_alarma
+    except:
+        pass
+    return 0, "", ""
+    
 def cargar_datos_clinica(fecha):
     df_completo = cargar_tabla("Clinica")
     if not df_completo.empty and 'Fecha' in df_completo.columns:
