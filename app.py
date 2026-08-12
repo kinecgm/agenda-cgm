@@ -41,15 +41,16 @@ st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
-def conectar_sheets():
+def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
-    return gspread.authorize(creds)
+    cliente = gspread.authorize(creds)
+    # Al retornar el doc aquí, Streamlit lo guarda en caché y evita el Error 429
+    return cliente.open("Base_Datos_Kine")
 
 try:
-    cliente = conectar_sheets()
-    doc = cliente.open("Base_Datos_Kine")
+    doc = conectar_bd()
 except Exception as e:
     st.error(f"Error conectando a la base de datos: {e}")
     st.stop()
