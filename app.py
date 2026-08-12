@@ -39,14 +39,14 @@ st.markdown("""
 st.markdown('<p class="titulo-principal">Centro de Comando</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</p>', unsafe_allow_html=True)
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN A GOOGLE SHEETS (BLINDADA CONTRA ERROR 429) ---
 @st.cache_resource
 def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    # Al retornar el doc aquí, Streamlit lo guarda en caché y evita el Error 429
+    # Al retornar el doc aquí, Streamlit lo guarda y evita tocar la API excesivamente
     return cliente.open("Base_Datos_Kine")
 
 try:
@@ -61,7 +61,7 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ Caché ampliado a 300 segundos
+# 🛡️ Caché de Lectura
 @st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
     try:
@@ -79,35 +79,35 @@ def guardar_tabla(nombre_hoja, df):
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
-# --- MEMORIA Y NAVEGACIÓN ---
-if "fecha_memoria" not in st.session_state:
-    st.session_state.fecha_memoria = date.today()
-if "vista" not in st.session_state:
-    st.session_state.vista = "calendario"
-if "mes_calendario" not in st.session_state:
-    st.session_state.mes_calendario = date.today().replace(day=1)
+# --- MEMORIA Y NAVEGACIÓN (BLINDADA) ---
+if "app_fecha_sel" not in st.session_state:
+    st.session_state.app_fecha_sel = date.today()
+if "app_vista" not in st.session_state:
+    st.session_state.app_vista = "calendario"
+if "app_mes_cal" not in st.session_state:
+    st.session_state.app_mes_cal = date.today().replace(day=1)
 
 def ir_a_hoy():
-    st.session_state.fecha_memoria = date.today()
-    st.session_state.mes_calendario = date.today().replace(day=1)
-    st.session_state.vista = "dia"
+    st.session_state.app_fecha_sel = date.today()
+    st.session_state.app_mes_cal = date.today().replace(day=1)
+    st.session_state.app_vista = "dia"
 
 def cambiar_mes(delta):
-    mes = st.session_state.mes_calendario.month - 1 + delta
-    año = st.session_state.mes_calendario.year + mes // 12
+    mes = st.session_state.app_mes_cal.month - 1 + delta
+    año = st.session_state.app_mes_cal.year + mes // 12
     mes = mes % 12 + 1
-    st.session_state.mes_calendario = date(año, mes, 1)
+    st.session_state.app_mes_cal = date(año, mes, 1)
 
 # --- RUTAS PRINCIPALES DE VISTA ---
-if st.session_state.vista == "calendario":
+if st.session_state.app_vista == "calendario":
     # 📆 VISTA: CALENDARIO MENSUAL GIGANTE
     col_mes1, col_mes2, col_mes3 = st.columns([1, 2, 1])
     with col_mes1:
         st.button("⬅️ Mes Anterior", on_click=cambiar_mes, args=(-1,), use_container_width=True)
     with col_mes2:
         meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
-        año_act = st.session_state.mes_calendario.year
-        mes_act = st.session_state.mes_calendario.month
+        año_act = st.session_state.app_mes_cal.year
+        mes_act = st.session_state.app_mes_cal.month
         st.markdown(f"<h3 style='text-align: center; color: #2C3E50; margin-top: 0;'>{meses_es[mes_act-1]} {año_act}</h3>", unsafe_allow_html=True)
     with col_mes3:
         st.button("Mes Siguiente ➡️", on_click=cambiar_mes, args=(1,), use_container_width=True)
@@ -127,8 +127,8 @@ if st.session_state.vista == "calendario":
                 is_today = (date.today() == date(año_act, mes_act, day))
                 btn_type = "primary" if is_today else "secondary"
                 if cols[i].button(str(day), key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
-                    st.session_state.fecha_memoria = date(año_act, mes_act, day)
-                    st.session_state.vista = "dia"
+                    st.session_state.app_fecha_sel = date(año_act, mes_act, day)
+                    st.session_state.app_vista = "dia"
                     st.rerun()
             else:
                 cols[i].write("")
@@ -143,13 +143,13 @@ else:
     col_back, col_vacia, col_hoy = st.columns([1, 2, 1])
     with col_back:
         if st.button("📅 Volver al Calendario", use_container_width=True):
-            st.session_state.vista = "calendario"
+            st.session_state.app_vista = "calendario"
             st.rerun()
     with col_hoy:
         st.button("🎯 Ir a Hoy", on_click=ir_a_hoy, use_container_width=True)
 
-    fecha_str = st.session_state.fecha_memoria.strftime("%Y-%m-%d")
-    fecha_visual = st.session_state.fecha_memoria.strftime("%d/%m/%Y")
+    fecha_str = st.session_state.app_fecha_sel.strftime("%Y-%m-%d")
+    fecha_visual = st.session_state.app_fecha_sel.strftime("%d/%m/%Y")
 
     horas_30_min = [
         "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", 
@@ -330,7 +330,6 @@ else:
     df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
     # --- 🛡️ AUTO-SINCRONIZACIÓN (CLÍNICA -> HORARIO PERSONAL) ---
-    # Esto inyecta "Atendiendo a..." en tu horario personal automáticamente si agendas un paciente
     for index in df_clinica.index:
         pac_clinica = str(df_clinica.at[index, 'Paciente']).strip()
         act_personal = str(df_personal.at[index, 'Actividad']).strip()
@@ -340,7 +339,6 @@ else:
                 df_personal.at[index, 'Actividad'] = f"🩺 Atendiendo: {pac_clinica}"
                 df_personal.at[index, 'Categoría'] = "Clínica"
         else:
-            # Si se borra el paciente, liberamos el horario personal automáticamente
             if act_personal.startswith("🩺 Atendiendo"):
                 df_personal.at[index, 'Actividad'] = ""
                 df_personal.at[index, 'Categoría'] = "-"
@@ -403,7 +401,6 @@ else:
             df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"
             df_clinica.at[index, 'Recordatorio'] = ""
 
-        # Como ahora inyectamos el paciente en el horario personal, evitamos que salga "Tope Horario" si es la misma sesión.
         if actividad_personal != "" and (hay_paciente or es_cita_clinica):
             if actividad_personal.startswith("🩺 Atendiendo"): df_clinica.at[index, 'Estado'] = "Agendado 🔒"
             else: df_clinica.at[index, 'Estado'] = "⚠️ TOPE HORARIO ⚠️"
@@ -498,7 +495,7 @@ else:
                     fechas_exitosas, fechas_ocupadas = [], []
                     dias_buscados = 0
 
-                    with st.spinner('Revisando disponibilidad en la nube (con control de velocidad)...'):
+                    with st.spinner('Revisando disponibilidad en la nube...'):
                         while sesiones_logradas < m_sesiones and dias_buscados < 365:
                             if fecha_iter.weekday() in dias_obj:
                                 f_str = fecha_iter.strftime("%Y-%m-%d")
@@ -558,8 +555,13 @@ else:
                         st.info(f"💡 Inteligencia de conflictos: Se omitieron estos días porque tenías un choque clínico o personal: {', '.join(fechas_ocupadas)}")
                     st.rerun()
 
+        st.caption("💡 Para guardar: Si estás escribiendo en una celda, presiona **Enter** o haz clic fuera de ella antes de apretar el botón azul.")
         df_clinica_editado = st.data_editor(
-            df_clinica, use_container_width=True, hide_index=True, num_rows="dynamic",
+            df_clinica, 
+            use_container_width=True, 
+            hide_index=True, 
+            num_rows="dynamic",
+            key=f"editor_clinica_{fecha_str}",
             column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Recordatorio", "Estado", "N° Sesión", "Pago"),
             column_config={
                 "Detalle / Motivo": st.column_config.SelectboxColumn("Detalle / Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
@@ -576,7 +578,7 @@ else:
         
         if btn_guardar_clinica:
             guardar_dia("Clinica", fecha_str, df_clinica_editado)
-            guardar_dia("Personal", fecha_str, df_personal) # Guardamos el personal por si se inyectaron bloqueos automáticos
+            guardar_dia("Personal", fecha_str, df_personal) # Guardamos el personal por la auto-sincronización
             st.success("¡Agenda guardada con éxito en la nube!")
             st.rerun()
 
@@ -591,7 +593,11 @@ else:
         st.markdown("Escribe tus bloques de estudio (Tesis), salidas o descansos aquí. ¡Si agendas un paciente en la Clínica, se bloqueará automáticamente aquí!")
         
         df_personal_editado = st.data_editor(
-            df_personal, use_container_width=True, hide_index=True, num_rows="dynamic",
+            df_personal, 
+            use_container_width=True, 
+            hide_index=True, 
+            num_rows="dynamic",
+            key=f"editor_personal_{fecha_str}",
             column_order=("Hora", "Actividad", "Categoría", "Notas"),
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
@@ -682,7 +688,7 @@ else:
         st.header("📊 Dashboard General")
         st.markdown("Ingresos, pagos y actividad agregada por mes. El cálculo de ingresos usa el **Valor Sesión** cargado en la Ficha Clínica de cada paciente.")
 
-        mes_dashboard = st.date_input("Selecciona un mes de referencia:", value=st.session_state.fecha_memoria, key="mes_dashboard")
+        mes_dashboard = st.date_input("Selecciona un mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
         stats = calcular_dashboard_mensual(mes_dashboard)
 
         st.markdown(f"### Resumen de {mes_dashboard.strftime('%B %Y')}")
