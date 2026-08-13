@@ -578,7 +578,7 @@ else:
         
         if btn_guardar_clinica:
             guardar_dia("Clinica", fecha_str, df_clinica_editado)
-            guardar_dia("Personal", fecha_str, df_personal) # Guardamos el personal por la auto-sincronización
+            guardar_dia("Personal", fecha_str, df_personal)
             st.success("¡Agenda guardada con éxito en la nube!")
             st.rerun()
 
@@ -683,6 +683,18 @@ else:
                         df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor.replace('nan', '')
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada de forma segura en la nube!")
+                
+                # --- NUEVO: BOTÓN DE ELIMINAR FICHA ---
+                st.markdown("---")
+                with st.expander("⚠️ Zona de Peligro: Eliminar Ficha"):
+                    st.warning(f"Estás a punto de eliminar la ficha de **{paciente_seleccionado}**. Esto borrará sus datos personales y notas clínicas, pero NO borrará sus sesiones del calendario.")
+                    confirmacion = st.checkbox(f"Confirmo que deseo eliminar la ficha de {paciente_seleccionado}")
+                    if st.button("🗑️ Eliminar Ficha Permanentemente", type="primary", disabled=not confirmacion):
+                        df_fichas = df_fichas[df_fichas['Paciente'] != paciente_seleccionado]
+                        guardar_tabla("Fichas", df_fichas)
+                        st.success("Ficha eliminada con éxito. Actualizando sistema...")
+                        time.sleep(1.5)
+                        st.rerun()
 
     with tab4:
         st.header("📊 Dashboard General")
