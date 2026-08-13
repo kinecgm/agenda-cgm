@@ -439,6 +439,24 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary", key="btn_save_clinica")
         
+        # --- NUEVO: BUSCADOR DE PACIENTES ---
+        with st.expander("🔍 Buscador de Pacientes en el Calendario"):
+            st.markdown("Encuentra rápidamente todas las fechas y horas en las que está agendado un paciente (ideal para borrar errores de tipeo o reagendar).")
+            lista_pacientes_buscador = obtener_lista_pacientes()
+            if not lista_pacientes_buscador:
+                st.info("No hay pacientes agendados en el calendario.")
+            else:
+                paciente_buscar = st.selectbox("Selecciona un paciente a buscar:", ["-- Selecciona --"] + lista_pacientes_buscador, key="buscador_paciente_cal")
+                if paciente_buscar != "-- Selecciona --":
+                    df_full_clinica = cargar_tabla("Clinica")
+                    if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
+                        df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
+                        if not df_filtro.empty:
+                            df_resumen = df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora'])
+                            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+                        else:
+                            st.warning("No se encontraron sesiones agendadas para este paciente.")
+
         with st.expander("📍 Configuración de Viajes y Alarmas"):
             st.markdown("**1. Activa tu GPS (Permite el acceso a la ubicación si el navegador te lo pide):**")
             ubicacion_gps = streamlit_geolocation()
@@ -684,7 +702,6 @@ else:
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada de forma segura en la nube!")
                 
-                # --- NUEVO: BOTÓN DE ELIMINAR FICHA ---
                 st.markdown("---")
                 with st.expander("⚠️ Zona de Peligro: Eliminar Ficha"):
                     st.warning(f"Estás a punto de eliminar la ficha de **{paciente_seleccionado}**. Esto borrará sus datos personales y notas clínicas, pero NO borrará sus sesiones del calendario.")
