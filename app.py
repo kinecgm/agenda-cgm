@@ -39,7 +39,7 @@ st.markdown("""
 st.markdown('<p class="titulo-principal">Centro de Comando</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</p>', unsafe_allow_html=True)
 
-# --- CONEXIÓN A GOOGLE SHEETS (BLINDADA CONTRA ERROR 429) ---
+# --- CONEXIÓN A GOOGLE SHEETS (BLINDADA) ---
 @st.cache_resource
 def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
@@ -79,7 +79,7 @@ def guardar_tabla(nombre_hoja, df):
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
-# --- MEMORIA Y NAVEGACIÓN (BLINDADA) ---
+# --- MEMORIA Y NAVEGACIÓN ---
 if "app_fecha_sel" not in st.session_state:
     st.session_state.app_fecha_sel = date.today()
 if "app_vista" not in st.session_state:
@@ -100,7 +100,7 @@ def cambiar_mes(delta):
 
 # --- RUTAS PRINCIPALES DE VISTA ---
 if st.session_state.app_vista == "calendario":
-    # 📆 VISTA: CALENDARIO MENSUAL GIGANTE
+    # 📆 VISTA: CALENDARIO MENSUAL
     col_mes1, col_mes2, col_mes3 = st.columns([1, 2, 1])
     with col_mes1:
         st.button("⬅️ Mes Anterior", on_click=cambiar_mes, args=(-1,), use_container_width=True)
@@ -139,7 +139,7 @@ if st.session_state.app_vista == "calendario":
         st.button("🎯 Ir directamente al Día de Hoy", on_click=ir_a_hoy, use_container_width=True, type="primary")
 
 else:
-    # 📝 VISTA: DÍA SELECCIONADO (LAS PESTAÑAS)
+    # 📝 VISTA: DÍA SELECCIONADO (PESTAÑAS)
     col_back, col_vacia, col_hoy = st.columns([1, 2, 1])
     with col_back:
         if st.button("📅 Volver al Calendario", use_container_width=True):
@@ -158,12 +158,11 @@ else:
         "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00"
     ]
 
-    # --- FUNCIONES DE BASE DE DATOS CENTRALIZADA ---
+    # --- FUNCIONES DE BASE DE DATOS ---
     def guardar_dia(tipo, fecha, df_dia):
         df_guardar = df_dia.copy()
         df_guardar.insert(0, 'Fecha', fecha)
         df_completo = cargar_tabla(tipo)
-        
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_completo = df_completo[df_completo['Fecha'] != fecha]
             df_final = pd.concat([df_completo, df_guardar], ignore_index=True)
@@ -367,8 +366,6 @@ else:
         hay_paciente = (paciente != "" and not es_almuerzo)
         
         if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
-            
-            # --- CORRECCIÓN: EL MAPA AHORA SIEMPRE SE GENERA ---
             if direccion != "":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
                 df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
@@ -441,9 +438,8 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios Clínicos", use_container_width=True, type="primary", key="btn_save_clinica")
         
-        # --- NUEVO: BUSCADOR DE PACIENTES ---
         with st.expander("🔍 Buscador de Pacientes en el Calendario"):
-            st.markdown("Encuentra rápidamente todas las fechas y horas en las que está agendado un paciente (ideal para borrar errores de tipeo o reagendar).")
+            st.markdown("Encuentra rápidamente todas las fechas y horas en las que está agendado un paciente.")
             lista_pacientes_buscador = obtener_lista_pacientes()
             if not lista_pacientes_buscador:
                 st.info("No hay pacientes agendados en el calendario.")
@@ -574,6 +570,80 @@ else:
                     if fechas_ocupadas:
                         st.info(f"💡 Inteligencia de conflictos: Se omitieron estos días porque tenías un choque clínico o personal: {', '.join(fechas_ocupadas)}")
                     st.rerun()
+                    
+        # --- NUEVO: REAGENDAR O DUPLICAR CITA ---
+        with st.expander("✂️ Reagendar o Duplicar Sesión"):
+            st.markdown("Selecciona una sesión de **este día** para copiarla o moverla a otra fecha y hora.")
+            
+            sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
+            opciones_citas = ["-- Selecciona --"] + [f"{r['Hora']} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
+            
+            col_r1, col_r2, col_r3 = st.columns(3)
+            with col_r1:
+                cita_origen = st.selectbox("1. Cita a reagendar/copiar:", opciones_citas)
+                accion_reagendar = st.radio("2. ¿Qué deseas hacer?", ["Mover (Cambiar de día)", "Duplicar (Crear una copia)"])
+            with col_r2:
+                fecha_destino = st.date_input("3. Nueva fecha:", value=st.session_state.app_fecha_sel + timedelta(days=1))
+                hora_destino = st.selectbox("4. Nueva hora:", horas_30_min, key="hora_destino_reagendar")
+            with col_r3:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                btn_reagendar = st.button("🚀 Ejecutar Acción", use_container_width=True)
+                
+            if btn_reagendar:
+                if cita_origen == "-- Selecciona --":
+                    st.error("Por favor selecciona una cita de origen.")
+                else:
+                    hora_origen = cita_origen.split(" - ")[0]
+                    fila_origen = df_clinica[df_clinica['Hora'] == hora_origen].iloc[0]
+                    
+                    f_dest_str = fecha_destino.strftime("%Y-%m-%d")
+                    df_clinica_dest = cargar_datos_clinica(f_dest_str)
+                    df_pers_dest = cargar_datos_personal(f_dest_str)
+                    mapa_pers_dest = obtener_actividad_por_hora(df_pers_dest)
+                    
+                    idx_dest_list = df_clinica_dest.index[df_clinica_dest['Hora'] == hora_destino].tolist()
+                    if not idx_dest_list:
+                        st.error("Error al buscar la hora de destino.")
+                    else:
+                        idx_dest = idx_dest_list[0]
+                        p_dest = str(df_clinica_dest.at[idx_dest, 'Paciente']).strip()
+                        d_dest = str(df_clinica_dest.at[idx_dest, 'Detalle / Motivo']).strip()
+                        a_dest = mapa_pers_dest.get(hora_destino, "")
+                        
+                        ocupado = False
+                        if p_dest != "" or d_dest in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_dest != "" and not a_dest.startswith("🩺")):
+                            ocupado = True
+                            
+                        if ocupado:
+                            st.error(f"⚠️ La hora {hora_destino} del {fecha_destino.strftime('%d/%m/%Y')} ya está ocupada.")
+                        else:
+                            with st.spinner("Procesando..."):
+                                df_clinica_dest.at[idx_dest, 'Paciente'] = fila_origen['Paciente']
+                                df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = fila_origen['Detalle / Motivo']
+                                df_clinica_dest.at[idx_dest, 'Dirección'] = fila_origen['Dirección']
+                                df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = fila_origen['Minutos de Viaje']
+                                df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
+                                df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
+                                
+                                guardar_dia("Clinica", f_dest_str, df_clinica_dest)
+                                
+                                if accion_reagendar == "Mover (Cambiar de día)":
+                                    idx_origen = df_clinica.index[df_clinica['Hora'] == hora_origen].tolist()[0]
+                                    df_clinica.at[idx_origen, 'Paciente'] = ""
+                                    df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
+                                    df_clinica.at[idx_origen, 'Dirección'] = ""
+                                    df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
+                                    df_clinica.at[idx_origen, 'Pago'] = "-"
+                                    df_clinica.at[idx_origen, 'N° Sesión'] = ""
+                                    df_clinica.at[idx_origen, 'Ruta Maps'] = ""
+                                    df_clinica.at[idx_origen, 'Alarma'] = ""
+                                    df_clinica.at[idx_origen, 'Recordatorio'] = ""
+                                    df_clinica.at[idx_origen, 'Hora de Salida'] = ""
+                                    guardar_dia("Clinica", fecha_str, df_clinica)
+                                    
+                                st.success("✅ ¡Operación exitosa!")
+                                time.sleep(1)
+                                st.rerun()
 
         st.caption("💡 Para guardar: Si estás escribiendo en una celda, presiona **Enter** o haz clic fuera de ella antes de apretar el botón azul.")
         df_clinica_editado = st.data_editor(
