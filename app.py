@@ -46,7 +46,6 @@ def conectar_bd():
     scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    # Al retornar el doc aquí, Streamlit lo guarda y evita tocar la API excesivamente
     return cliente.open("Base_Datos_Kine")
 
 try:
@@ -61,14 +60,15 @@ def obtener_hoja(nombre):
     except gspread.exceptions.WorksheetNotFound:
         return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ Caché de Lectura
+# 🛡️ Caché de Lectura (CON ALERTA DE ERRORES)
 @st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
     try:
         hoja = obtener_hoja(nombre_hoja)
         datos = hoja.get_all_records()
         return pd.DataFrame(datos) if datos else pd.DataFrame()
-    except Exception:
+    except Exception as e:
+        st.error(f"⚠️ Alerta: Google interrumpió la conexión al intentar leer '{nombre_hoja}'. Espera un minuto y presiona 'Clear Cache' arriba a la derecha en los tres puntitos (⋮).")
         return pd.DataFrame()
 
 def guardar_tabla(nombre_hoja, df):
@@ -181,7 +181,7 @@ else:
         return pd.DataFrame({
             "Hora": horas_30_min, "Paciente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
             "Dirección": [""] * len(horas_30_min), "Minutos de Viaje": [0] * len(horas_30_min), 
-            "Hora de Salida": [""] * len(horas_30_min), "Ruta Maps": [""] * len(horas_30_min),
+            "Hora de Salida": [""] * len(horas_30_min), "Ruta Maps": [""] * len(horas_30_min), "Alarma": [""] * len(horas_30_min),
             "Estado": ["Libre 🟢"] * len(horas_30_min), "N° Sesión": [""] * len(horas_30_min), "Pago": ["-"] * len(horas_30_min),
             "Recordatorio": [""] * len(horas_30_min)
         })
@@ -320,6 +320,8 @@ else:
     df_clinica['Minutos de Viaje'] = pd.to_numeric(df_clinica['Minutos de Viaje'], errors='coerce').fillna(0).astype(int)
     df_clinica['Hora de Salida'] = df_clinica['Hora de Salida'].fillna("").astype(str)
     df_clinica['Ruta Maps'] = df_clinica['Ruta Maps'].fillna("").astype(str)
+    if 'Alarma' not in df_clinica.columns: df_clinica['Alarma'] = ""
+    df_clinica['Alarma'] = df_clinica['Alarma'].fillna("").astype(str)
     df_clinica['N° Sesión'] = df_clinica['N° Sesión'].fillna("").astype(str)
     df_clinica['Pago'] = df_clinica['Pago'].fillna("-").astype(str)
     if 'Recordatorio' not in df_clinica.columns: df_clinica['Recordatorio'] = ""
@@ -355,7 +357,6 @@ else:
         pago_actual = str(df_clinica.at[index, 'Pago']).strip()
         sesion_actual = str(df_clinica.at[index, 'N° Sesión']).strip()
         detalle_actual = str(df_clinica.at[index, 'Detalle / Motivo']).strip()
-        ruta_actual = str(df_clinica.at[index, 'Ruta Maps']).strip()
         
         actividad_personal = mapa_personal.get(hora_str, "") 
         
@@ -366,12 +367,13 @@ else:
         hay_paciente = (paciente != "" and not es_almuerzo)
         
         if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
-            if "calendar.google.com" not in ruta_actual:
-                if direccion != "":
-                    query_maps = urllib.parse.quote(direccion + ", Chile")
-                    df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
-                else: 
-                    df_clinica.at[index, 'Ruta Maps'] = ""
+            
+            # --- CORRECCIÓN: EL MAPA AHORA SIEMPRE SE GENERA ---
+            if direccion != "":
+                query_maps = urllib.parse.quote(direccion + ", Chile")
+                df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
+            else: 
+                df_clinica.at[index, 'Ruta Maps'] = ""
                     
             try:
                 tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
@@ -397,7 +399,7 @@ else:
             else:
                 df_clinica.at[index, 'Recordatorio'] = ""
         else:
-            df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""
+            df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""; df_clinica.at[index, 'Alarma'] = ""
             df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"
             df_clinica.at[index, 'Recordatorio'] = ""
 
@@ -479,7 +481,7 @@ else:
                             if minutos > 0:
                                 df_clinica.at[idx, 'Minutos de Viaje'] = minutos
                                 df_clinica.at[idx, 'Hora de Salida'] = h_salida
-                                df_clinica.at[idx, 'Ruta Maps'] = link_alarma
+                                df_clinica.at[idx, 'Alarma'] = link_alarma
                     
                     guardar_dia("Clinica", fecha_str, df_clinica)
                     st.success("¡Tiempos calculados y alarmas generadas!")
@@ -580,13 +582,14 @@ else:
             hide_index=True, 
             num_rows="dynamic",
             key=f"editor_clinica_{fecha_str}",
-            column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Recordatorio", "Estado", "N° Sesión", "Pago"),
+            column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Alarma", "Recordatorio", "Estado", "N° Sesión", "Pago"),
             column_config={
                 "Detalle / Motivo": st.column_config.SelectboxColumn("Detalle / Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
                 "Dirección": st.column_config.TextColumn("Dirección"),
                 "Minutos de Viaje": st.column_config.NumberColumn("Minutos Viaje ⏱️", min_value=0, step=1),
                 "Hora de Salida": st.column_config.TextColumn("Hora de Salida ⏰", disabled=True),
-                "Ruta Maps": st.column_config.LinkColumn("🗺️ Navegación / 🔔 Alarma", disabled=True, display_text="Abrir Ruta/Alarma"),
+                "Ruta Maps": st.column_config.LinkColumn("🗺️ Mapa", disabled=True, display_text="Ver Ruta en Maps"),
+                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Crear Alarma"),
                 "Recordatorio": st.column_config.LinkColumn("📲 Recordatorio", disabled=True, display_text="Enviar WhatsApp", help="Requiere teléfono cargado en la Ficha Clínica del paciente."),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("N° Sesión", help="Calculado automáticamente."),
