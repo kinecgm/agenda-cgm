@@ -28,7 +28,7 @@ st.markdown("""
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
 
-    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el computador) */
+    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el PC) */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
             display: grid !important;
@@ -248,6 +248,11 @@ else:
         df_fichas = cargar_tabla("Fichas")
         if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Teléfono' not in df_fichas.columns: return {}
         return dict(zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Teléfono'].astype(str).str.strip()))
+        
+    def obtener_direccion_por_paciente():
+        df_fichas = cargar_tabla("Fichas")
+        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Dirección' not in df_fichas.columns: return {}
+        return dict(zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Dirección'].astype(str).str.strip()))
 
     def obtener_valor_por_paciente():
         df_fichas = cargar_tabla("Fichas")
@@ -336,6 +341,7 @@ else:
 
     mapa_personal = obtener_actividad_por_hora(df_personal) 
     mapa_telefonos = obtener_telefono_por_paciente()
+    mapa_direcciones = obtener_direccion_por_paciente()
 
     for index in df_clinica.index:
         paciente = str(df_clinica.at[index, 'Paciente']).strip()
@@ -352,6 +358,13 @@ else:
         es_almuerzo = (paciente.upper() == "ALMUERZO")
         hay_paciente = (paciente != "" and not es_almuerzo)
         
+        # Auto-relleno de dirección desde la ficha clínica
+        if hay_paciente and direccion == "":
+            dir_guardada = mapa_direcciones.get(paciente.upper(), "")
+            if dir_guardada != "":
+                direccion = dir_guardada
+                df_clinica.at[index, 'Dirección'] = direccion
+
         if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
             if direccion != "":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
@@ -486,7 +499,13 @@ else:
                                         if not ocupado:
                                             df_dia_futuro.at[idx, 'Paciente'] = m_paciente
                                             df_dia_futuro.at[idx, 'Detalle / Motivo'] = m_motivo
-                                            df_dia_futuro.at[idx, 'Dirección'] = m_direccion
+                                            
+                                            # Relleno auto dirección
+                                            dir_final = m_direccion
+                                            if dir_final == "":
+                                                dir_final = mapa_direcciones.get(m_paciente.strip().upper(), "")
+                                            df_dia_futuro.at[idx, 'Dirección'] = dir_final
+                                            
                                             df_dia_futuro.at[idx, 'Minutos de Viaje'] = m_viaje
                                             df_dia_futuro.at[idx, 'Pago'] = "No pagada ❌"
                                             df_dia_futuro.at[idx, 'N° Sesión'] = "" 
@@ -599,29 +618,44 @@ else:
             paciente_seleccionado = st.selectbox("🔍 Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes, key="selector_paciente_unico")
             if paciente_seleccionado != "-- Selecciona --":
                 df_fichas = cargar_tabla("Fichas")
-                if df_fichas.empty or 'Paciente' not in df_fichas.columns: df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión'])
+                # Asegurar que todas las columnas existan
+                if df_fichas.empty or 'Paciente' not in df_fichas.columns: 
+                    df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección'])
                 if 'Valor Sesión' not in df_fichas.columns: df_fichas['Valor Sesión'] = "" 
+                if 'Dirección' not in df_fichas.columns: df_fichas['Dirección'] = "" 
+                
                 if paciente_seleccionado not in df_fichas['Paciente'].values:
-                    df_fichas = pd.concat([df_fichas, pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""]})], ignore_index=True)
+                    nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""]})
+                    df_fichas = pd.concat([df_fichas, nueva_fila], ignore_index=True)
                     guardar_tabla("Fichas", df_fichas)
+                    
                 idx_ficha = df_fichas.index[df_fichas['Paciente'] == paciente_seleccionado][0]
                 tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(paciente_seleccionado)
+                
                 col_met1, col_met2, col_met3 = st.columns(3)
                 col_met1.metric("Sesiones", tot_sesiones)
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
+                
                 with st.form(key=f"form_ficha_{paciente_seleccionado}"):
                     col_f1, col_f2 = st.columns(2)
                     with col_f1:
-                        nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_fichas.at[idx_ficha, 'Teléfono']))
-                        nueva_edad = st.text_input("🎂 Edad:", value=str(df_fichas.at[idx_ficha, 'Edad']))
+                        nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_fichas.at[idx_ficha, 'Teléfono']).replace('nan', ''))
+                        nueva_edad = st.text_input("🎂 Edad:", value=str(df_fichas.at[idx_ficha, 'Edad']).replace('nan', ''))
+                        nuevo_dir = st.text_input("📍 Dirección Base:", value=str(df_fichas.at[idx_ficha, 'Dirección']).replace('nan', ''), help="Se rellenará automáticamente en el calendario.")
                     with col_f2:
-                        nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']))
+                        nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']).replace('nan', ''))
                         nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
-                    nuevas_notas = st.text_area("✍️ Evolución:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']), height=200)
+                        st.markdown("<br>", unsafe_allow_html=True) # Espaciador
+                        
+                    nuevas_notas = st.text_area("✍️ Evolución:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200)
                     if st.form_submit_button("💾 Guardar Ficha"):
-                        df_fichas.at[idx_ficha, 'Teléfono'], df_fichas.at[idx_ficha, 'Edad'] = nuevo_tel, nueva_edad
-                        df_fichas.at[idx_ficha, 'Diagnóstico'], df_fichas.at[idx_ficha, 'Notas Clínicas'], df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_diag, nuevas_notas, nuevo_valor
+                        df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
+                        df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
+                        df_fichas.at[idx_ficha, 'Dirección'] = nuevo_dir
+                        df_fichas.at[idx_ficha, 'Diagnóstico'] = nuevo_diag
+                        df_fichas.at[idx_ficha, 'Notas Clínicas'] = nuevas_notas
+                        df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada!")
 
