@@ -14,36 +14,45 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX) ---
+# --- ESTILOS PERSONALIZADOS AVANZADOS (CORREGIDO PARA PC Y CELULAR) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Grilla móvil para calendario */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-        display: grid !important;
-        grid-template-columns: repeat(7, 1fr) !important;
-        gap: 4px !important;
-        width: 100% !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
-        width: 100% !important; min-width: 0 !important; padding: 0 !important;
-    }
+    /* Diseño base de los botones del calendario (Aplica a PC y Celular) */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-        width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
-        font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
-        border: 1px solid #E0E6ED !important; min-height: 45px !important;
+        width: 100% !important; 
+        padding: 12px 0px !important; 
+        border-radius: 8px !important;
+        font-size: 1rem !important; 
+        font-weight: 700 !important; 
+        box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
+        border: 1px solid #E0E6ED !important; 
     }
-    @media (max-width: 500px) {
+    
+    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el computador) */
+    @media (max-width: 768px) {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+        }
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
+            min-width: 13% !important; 
+            width: 14% !important; 
+            padding: 0 2px !important;
+        }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-            padding: 8px 0px !important; font-size: 0.85rem !important; border-radius: 6px !important; min-height: 40px !important;
+            padding: 8px 0px !important; 
+            font-size: 0.85rem !important; 
+            min-height: 40px !important;
         }
         .dia-semana { font-size: 0.75rem !important; }
         .titulo-principal { font-size: 1.8rem !important; }
         .subtitulo { font-size: 1rem !important; }
     }
+    
     button[data-baseweb="tab"] { font-size: 1rem !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -153,14 +162,13 @@ else:
         df_guardar = df_dia.copy()
         df_guardar.insert(0, 'Fecha', fecha)
         
-        # Leemos directo saltando el caché para asegurarnos de que Google responda AHORA
         try:
             hoja_segura = obtener_hoja(tipo)
             datos_seguros = hoja_segura.get_all_records()
             df_completo = pd.DataFrame(datos_seguros) if datos_seguros else pd.DataFrame()
         except Exception as e:
             st.error(f"🚨 SEGURIDAD ACTIVADA: Google rechazó la conexión. El guardado en '{tipo}' se ha cancelado para proteger los datos de los otros días. Por favor, intenta de nuevo en 1 minuto.")
-            return False # Falló, abortar.
+            return False 
         
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_completo = df_completo[df_completo['Fecha'] != fecha]
@@ -169,7 +177,7 @@ else:
             df_final = df_guardar
             
         guardar_tabla(tipo, df_final)
-        return True # Éxito
+        return True 
 
     # --- RESTO DE FUNCIONES ---
     def cargar_datos_clinica(fecha):
