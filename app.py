@@ -17,73 +17,41 @@ st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layo
 # --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX) ---
 st.markdown("""
 <style>
-    /* Reducir el espacio en blanco superior */
-    .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-    }
+    .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+    .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
+    .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Tipografía y colores de cabecera */
-    .titulo-principal {
-        color: #2C3E50;
-        text-align: center;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 800;
-        font-size: 2.5rem;
-        margin-bottom: -10px;
-    }
-    .subtitulo {
-        color: #18BC9C;
-        text-align: center;
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-        font-weight: 600;
-        font-size: 1.2rem;
-        margin-bottom: 2rem;
-    }
-
-    /* MAGIA PARA EL CALENDARIO EN CELULARES */
-    /* Fuerza a que las filas de 7 columnas se mantengan horizontales siempre */
+    /* Grilla móvil para calendario */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important; /* Permite un leve scroll si la pantalla es minúscula */
+        display: grid !important;
+        grid-template-columns: repeat(7, 1fr) !important;
         gap: 4px !important;
-        padding-bottom: 5px;
+        width: 100% !important;
     }
-    
-    /* Ajusta el ancho de cada día para que entren los 7 en la pantalla */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
-        min-width: 13% !important;
-        padding: 0 !important;
+        width: 100% !important; min-width: 0 !important; padding: 0 !important;
     }
-    
-    /* Diseño de los botones del calendario (más limpios y redondos) */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-        padding: 12px 0px !important;
-        border-radius: 12px !important;
-        font-size: 1rem !important;
-        font-weight: 700 !important;
-        box-shadow: 0px 2px 5px rgba(0,0,0,0.05);
-        border: 1px solid #E0E6ED !important;
-        transition: all 0.2s ease-in-out;
+        width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
+        font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
+        border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
-    
-    /* Efecto al presionar un día */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button:active {
-        transform: scale(0.95);
+    @media (max-width: 500px) {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+            padding: 8px 0px !important; font-size: 0.85rem !important; border-radius: 6px !important; min-height: 40px !important;
+        }
+        .dia-semana { font-size: 0.75rem !important; }
+        .titulo-principal { font-size: 1.8rem !important; }
+        .subtitulo { font-size: 1rem !important; }
     }
-    
-    /* Pestañas más elegantes */
-    button[data-baseweb="tab"] {
-        font-size: 1rem !important;
-        font-weight: 600 !important;
-    }
+    button[data-baseweb="tab"] { font-size: 1rem !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<p class="titulo-principal">Centro de Comando</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</p>', unsafe_allow_html=True)
 
-# --- CONEXIÓN A GOOGLE SHEETS (BLINDADA) ---
+# --- CONEXIÓN A GOOGLE SHEETS ---
 @st.cache_resource
 def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
@@ -92,19 +60,15 @@ def conectar_bd():
     cliente = gspread.authorize(creds)
     return cliente.open("Base_Datos_Kine")
 
-try:
-    doc = conectar_bd()
+try: doc = conectar_bd()
 except Exception as e:
     st.error(f"Error conectando a la base de datos: {e}")
     st.stop()
 
 def obtener_hoja(nombre):
-    try:
-        return doc.worksheet(nombre)
-    except gspread.exceptions.WorksheetNotFound:
-        return doc.add_worksheet(title=nombre, rows="1000", cols="20")
+    try: return doc.worksheet(nombre)
+    except gspread.exceptions.WorksheetNotFound: return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ Caché de Lectura
 @st.cache_data(ttl=300)
 def cargar_tabla(nombre_hoja):
     try:
@@ -112,7 +76,7 @@ def cargar_tabla(nombre_hoja):
         datos = hoja.get_all_records()
         return pd.DataFrame(datos) if datos else pd.DataFrame()
     except Exception as e:
-        st.error(f"⚠️ Alerta: Google interrumpió la conexión al intentar leer '{nombre_hoja}'. Espera un minuto y presiona 'Clear Cache' arriba a la derecha en los tres puntitos (⋮).")
+        st.error(f"⚠️ Alerta: Google interrumpió la lectura de '{nombre_hoja}'. Usa el botón 'Clear Cache'.")
         return pd.DataFrame()
 
 def guardar_tabla(nombre_hoja, df):
@@ -124,12 +88,9 @@ def guardar_tabla(nombre_hoja, df):
     st.cache_data.clear()
 
 # --- MEMORIA Y NAVEGACIÓN ---
-if "app_fecha_sel" not in st.session_state:
-    st.session_state.app_fecha_sel = date.today()
-if "app_vista" not in st.session_state:
-    st.session_state.app_vista = "calendario"
-if "app_mes_cal" not in st.session_state:
-    st.session_state.app_mes_cal = date.today().replace(day=1)
+if "app_fecha_sel" not in st.session_state: st.session_state.app_fecha_sel = date.today()
+if "app_vista" not in st.session_state: st.session_state.app_vista = "calendario"
+if "app_mes_cal" not in st.session_state: st.session_state.app_mes_cal = date.today().replace(day=1)
 
 def ir_a_hoy():
     st.session_state.app_fecha_sel = date.today()
@@ -142,26 +103,22 @@ def cambiar_mes(delta):
     mes = mes % 12 + 1
     st.session_state.app_mes_cal = date(año, mes, 1)
 
-# --- RUTAS PRINCIPALES DE VISTA ---
+# --- RUTAS PRINCIPALES ---
 if st.session_state.app_vista == "calendario":
-    # 📆 VISTA: CALENDARIO MENSUAL
     col_mes1, col_mes2, col_mes3 = st.columns([1, 2, 1])
-    with col_mes1:
-        st.button("⬅️ Anterior", on_click=cambiar_mes, args=(-1,), use_container_width=True)
+    with col_mes1: st.button("⬅️ Anterior", on_click=cambiar_mes, args=(-1,), use_container_width=True)
     with col_mes2:
         meses_es = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         año_act = st.session_state.app_mes_cal.year
         mes_act = st.session_state.app_mes_cal.month
         st.markdown(f"<h3 style='text-align: center; color: #2C3E50; margin-top: 0;'>{meses_es[mes_act-1]} {año_act}</h3>", unsafe_allow_html=True)
-    with col_mes3:
-        st.button("Siguiente ➡️", on_click=cambiar_mes, args=(1,), use_container_width=True)
+    with col_mes3: st.button("Siguiente ➡️", on_click=cambiar_mes, args=(1,), use_container_width=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-
     dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     cols_dias = st.columns(7)
     for i, d in enumerate(dias_semana):
-        cols_dias[i].markdown(f"<div style='text-align:center; font-weight:700; color:#18BC9C; font-size: 0.9rem; padding-bottom: 5px;'>{d}</div>", unsafe_allow_html=True)
+        cols_dias[i].markdown(f"<div class='dia-semana' style='text-align:center; font-weight:700; color:#18BC9C; padding-bottom: 5px;'>{d}</div>", unsafe_allow_html=True)
 
     cal = calendar.monthcalendar(año_act, mes_act)
     for week in cal:
@@ -174,51 +131,52 @@ if st.session_state.app_vista == "calendario":
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
                     st.rerun()
-            else:
-                cols[i].write("")
+            else: cols[i].write("")
 
     st.markdown("<br><hr>", unsafe_allow_html=True)
     st.button("🎯 Ir directamente a la agenda de Hoy", on_click=ir_a_hoy, use_container_width=True, type="primary")
 
 else:
-    # 📝 VISTA: DÍA SELECCIONADO
     col_back, col_vacia, col_hoy = st.columns([1, 2, 1])
     with col_back:
         if st.button("📅 Volver al Mes", use_container_width=True):
             st.session_state.app_vista = "calendario"
             st.rerun()
-    with col_hoy:
-        st.button("🎯 Ir a Hoy", on_click=ir_a_hoy, use_container_width=True)
+    with col_hoy: st.button("🎯 Ir a Hoy", on_click=ir_a_hoy, use_container_width=True)
 
     fecha_str = st.session_state.app_fecha_sel.strftime("%Y-%m-%d")
     fecha_visual = st.session_state.app_fecha_sel.strftime("%d/%m/%Y")
+    horas_30_min = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00"]
 
-    horas_30_min = [
-        "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", 
-        "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", 
-        "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", 
-        "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00"
-    ]
-
-    # --- FUNCIONES DE BASE DE DATOS ---
+    # --- 🛡️ FUNCIÓN DE GUARDADO BLINDADA ANTI-BORRADO ---
     def guardar_dia(tipo, fecha, df_dia):
         df_guardar = df_dia.copy()
         df_guardar.insert(0, 'Fecha', fecha)
-        df_completo = cargar_tabla(tipo)
+        
+        # Leemos directo saltando el caché para asegurarnos de que Google responda AHORA
+        try:
+            hoja_segura = obtener_hoja(tipo)
+            datos_seguros = hoja_segura.get_all_records()
+            df_completo = pd.DataFrame(datos_seguros) if datos_seguros else pd.DataFrame()
+        except Exception as e:
+            st.error(f"🚨 SEGURIDAD ACTIVADA: Google rechazó la conexión. El guardado en '{tipo}' se ha cancelado para proteger los datos de los otros días. Por favor, intenta de nuevo en 1 minuto.")
+            return False # Falló, abortar.
+        
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_completo = df_completo[df_completo['Fecha'] != fecha]
             df_final = pd.concat([df_completo, df_guardar], ignore_index=True)
         else:
             df_final = df_guardar
+            
         guardar_tabla(tipo, df_final)
+        return True # Éxito
 
+    # --- RESTO DE FUNCIONES ---
     def cargar_datos_clinica(fecha):
         df_completo = cargar_tabla("Clinica")
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_dia = df_completo[df_completo['Fecha'] == fecha]
-            if not df_dia.empty:
-                return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
-
+            if not df_dia.empty: return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
         return pd.DataFrame({
             "Hora": horas_30_min, "Paciente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
             "Dirección": [""] * len(horas_30_min), "Minutos de Viaje": [0] * len(horas_30_min), 
@@ -231,13 +189,8 @@ else:
         df_completo = cargar_tabla("Personal")
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_dia = df_completo[df_completo['Fecha'] == fecha]
-            if not df_dia.empty:
-                return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
-
-        return pd.DataFrame({
-            "Hora": horas_30_min, "Actividad": [""] * len(horas_30_min), 
-            "Categoría": ["-"] * len(horas_30_min), "Notas": [""] * len(horas_30_min)
-        })
+            if not df_dia.empty: return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
+        return pd.DataFrame({"Hora": horas_30_min, "Actividad": [""] * len(horas_30_min), "Categoría": ["-"] * len(horas_30_min), "Notas": [""] * len(horas_30_min)})
 
     def obtener_actividad_por_hora(df_personal):
         if df_personal.empty or 'Hora' not in df_personal.columns: return {}
@@ -251,7 +204,6 @@ else:
                 loc_origen = geolocator.geocode(origen_coords_o_texto + ", Valparaiso, Chile")
                 if not loc_origen: return 0, "", ""
                 coords_1 = (loc_origen.latitude, loc_origen.longitude)
-
             loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
             if loc_destino:
                 coords_2 = (loc_destino.latitude, loc_destino.longitude)
@@ -281,8 +233,7 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
-        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & 
-                             (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
         tot_sesiones = len(df_pac)
         pagadas = len(df_pac[df_pac['Pago'] == "Pagada ✅"])
         adeudadas = len(df_pac[df_pac['Pago'] == "No pagada ❌"])
@@ -315,24 +266,19 @@ else:
         df_completo = cargar_tabla("Clinica")
         resultado = {"total_sesiones": 0, "pagadas": 0, "adeudadas": 0, "ingresos": 0.0, "por_cobrar": 0.0, "pacientes_con_deuda": 0, "pacientes_totales": 0}
         if df_completo.empty or 'Fecha' not in df_completo.columns: return resultado
-
         prefijo_mes = fecha_referencia.strftime("%Y-%m")
         df_mes = df_completo[df_completo['Fecha'].astype(str).str.startswith(prefijo_mes)].copy()
         df_mes = df_mes[~df_mes['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
         df_mes = df_mes[(df_mes['Paciente'].astype(str).str.strip() != "") & (df_mes['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
-
         if df_mes.empty: return resultado
-
         mapa_valores = obtener_valor_por_paciente()
         df_mes['Paciente_norm'] = df_mes['Paciente'].astype(str).str.strip().str.upper()
         df_mes['Valor'] = df_mes['Paciente_norm'].map(mapa_valores).fillna(0.0)
-
         resultado["total_sesiones"] = len(df_mes)
         resultado["pagadas"] = len(df_mes[df_mes['Pago'] == "Pagada ✅"])
         resultado["adeudadas"] = len(df_mes[df_mes['Pago'] == "No pagada ❌"])
         resultado["ingresos"] = df_mes[df_mes['Pago'] == "Pagada ✅"]['Valor'].sum()
         resultado["por_cobrar"] = df_mes[df_mes['Pago'] == "No pagada ❌"]['Valor'].sum()
-
         pacientes_totales = df_mes['Paciente_norm'].unique()
         pacientes_deuda = df_mes[df_mes['Pago'] == "No pagada ❌"]['Paciente_norm'].unique()
         resultado["pacientes_totales"] = len(pacientes_totales)
@@ -344,8 +290,7 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return "1"
-        df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & 
-                              (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))].copy()
+        df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))].copy()
         if df_hist.empty: return "1"
         df_hist['FechaHora'] = pd.to_datetime(df_hist['Fecha'] + ' ' + df_hist['Hora'])
         fecha_hora_actual = pd.to_datetime(f"{fecha_actual} {hora_actual}")
@@ -372,11 +317,9 @@ else:
     df_personal['Categoría'] = df_personal['Categoría'].fillna("-").astype(str)
     df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
-    # --- 🛡️ AUTO-SINCRONIZACIÓN ---
     for index in df_clinica.index:
         pac_clinica = str(df_clinica.at[index, 'Paciente']).strip()
         act_personal = str(df_personal.at[index, 'Actividad']).strip()
-
         if pac_clinica != "" and pac_clinica.upper() != "ALMUERZO":
             if not act_personal.startswith("🩺 Atendiendo"):
                 df_personal.at[index, 'Actividad'] = f"🩺 Atendiendo: {pac_clinica}"
@@ -386,7 +329,6 @@ else:
                 df_personal.at[index, 'Actividad'] = ""
                 df_personal.at[index, 'Categoría'] = "-"
 
-    # --- 🤖 MAGIA AUTOMÁTICA DEL CALENDARIO ---
     mapa_personal = obtener_actividad_por_hora(df_personal) 
     mapa_telefonos = obtener_telefono_por_paciente()
 
@@ -398,9 +340,7 @@ else:
         pago_actual = str(df_clinica.at[index, 'Pago']).strip()
         sesion_actual = str(df_clinica.at[index, 'N° Sesión']).strip()
         detalle_actual = str(df_clinica.at[index, 'Detalle / Motivo']).strip()
-        
         actividad_personal = mapa_personal.get(hora_str, "") 
-        
         es_tramite = (detalle_actual == "Personal / Trámite 🛑")
         es_gimnasio = (detalle_actual == "Gimnasio 🏋️")
         es_cita_clinica = (detalle_actual in ["Rehabilitación", "Entrenamiento", "Preventivo"])
@@ -411,15 +351,12 @@ else:
             if direccion != "":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
                 df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
-            else: 
-                df_clinica.at[index, 'Ruta Maps'] = ""
-                    
+            else: df_clinica.at[index, 'Ruta Maps'] = ""
             try:
                 tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
                 tiempo_salida = tiempo_agendado - timedelta(minutes=(minutos + 4))
                 df_clinica.at[index, 'Hora de Salida'] = tiempo_salida.strftime("%H:%M")
             except: df_clinica.at[index, 'Hora de Salida'] = ""
-                
             if es_tramite or es_gimnasio:
                 df_clinica.at[index, 'Pago'] = "-"
                 df_clinica.at[index, 'N° Sesión'] = "-"
@@ -431,16 +368,13 @@ else:
                     try: float(sesion_actual); es_numero_auto = True
                     except ValueError: es_numero_auto = False
                 if es_numero_auto: df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
-
             if hay_paciente:
                 telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
                 df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, paciente, fecha_visual, hora_str)
-            else:
-                df_clinica.at[index, 'Recordatorio'] = ""
+            else: df_clinica.at[index, 'Recordatorio'] = ""
         else:
             df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""; df_clinica.at[index, 'Alarma'] = ""
-            df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"
-            df_clinica.at[index, 'Recordatorio'] = ""
+            df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"; df_clinica.at[index, 'Recordatorio'] = ""
 
         if actividad_personal != "" and (hay_paciente or es_cita_clinica):
             if actividad_personal.startswith("🩺 Atendiendo"): df_clinica.at[index, 'Estado'] = "Agendado 🔒"
@@ -454,36 +388,27 @@ else:
             if index > 0:
                 paciente_ant = str(df_clinica.at[index - 1, 'Paciente']).strip()
                 detalle_ant = str(df_clinica.at[index - 1, 'Detalle / Motivo']).strip()
-                es_tramite_ant = (detalle_ant == "Personal / Trámite 🛑")
-                es_gimnasio_ant = (detalle_ant == "Gimnasio 🏋️")
-                es_cita_ant = (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo"])
-                hay_paciente_ant = (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO")
-                
-                if es_tramite_ant or es_gimnasio_ant:
-                    nombre_bloqueo = paciente_ant if paciente_ant != "" else ("Trámite" if es_tramite_ant else "Gimnasio")
-                    df_clinica.at[index, 'Estado'] = f"Bloqueado ({nombre_bloqueo}) ⏳"
+                if (detalle_ant == "Personal / Trámite 🛑") or (detalle_ant == "Gimnasio 🏋️"):
+                    df_clinica.at[index, 'Estado'] = f"Bloqueado ({paciente_ant if paciente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
                     continue
-                elif es_cita_ant or hay_paciente_ant:
-                    nombre_sesion = paciente_ant if paciente_ant != "" else "Paciente"
-                    df_clinica.at[index, 'Estado'] = f"En sesión ({nombre_sesion}) ⏳"
+                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
+                    df_clinica.at[index, 'Estado'] = f"En sesión ({paciente_ant if paciente_ant != '' else 'Paciente'}) ⏳"
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
 
-    # --- SISTEMA DE PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["🩺 Calendario Clínico", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
+    # --- PESTAÑAS ---
+    tab1, tab2, tab3, tab4 = st.tabs(["🩺 Calendario", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
 
     with tab1:
         col_t1, col_t2 = st.columns([3, 1])
-        with col_t1:
-            st.header(f"📅 Agenda Clínica - {fecha_visual}")
+        with col_t1: st.header(f"📅 Agenda Clínica - {fecha_visual}")
         with col_t2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
         
-        with st.expander("🔍 Buscador de Pacientes en el Calendario"):
+        with st.expander("🔍 Buscador de Pacientes"):
             lista_pacientes_buscador = obtener_lista_pacientes()
-            if not lista_pacientes_buscador:
-                st.info("No hay pacientes agendados.")
+            if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
             else:
                 paciente_buscar = st.selectbox("Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes_buscador, key="buscador_paciente_cal")
                 if paciente_buscar != "-- Selecciona --":
@@ -491,37 +416,30 @@ else:
                     if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
                         df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
                         if not df_filtro.empty:
-                            df_resumen = df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora'])
-                            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
-                        else:
-                            st.warning("No se encontraron sesiones.")
+                            st.dataframe(df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora']), use_container_width=True, hide_index=True)
+                        else: st.warning("No se encontraron sesiones.")
 
-        with st.expander("📍 Tiempos de Viaje y Alarmas"):
+        with st.expander("📍 Viajes y Alarmas"):
             ubicacion_gps = streamlit_geolocation()
-            direccion_base = st.text_input("O escribe tu base manualmente:", value="Gomez Carreño, Viña del Mar")
-            
+            direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
             if st.button("⚡ Calcular Tiempos de Hoy"):
                 with st.spinner("Calculando..."):
                     origen_final = direccion_base
-                    if ubicacion_gps and ubicacion_gps.get('latitude') is not None:
-                        origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
-                    
+                    if ubicacion_gps and ubicacion_gps.get('latitude') is not None: origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
                     for idx in df_clinica.index:
-                        dir_paciente = str(df_clinica.at[idx, 'Dirección']).strip()
-                        hora_paciente = str(df_clinica.at[idx, 'Hora']).strip()
-                        
+                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).strip()
                         if dir_paciente != "":
                             minutos, h_salida, link_alarma = calcular_tiempo_y_alarma(origen_final, dir_paciente, fecha_str, hora_paciente)
                             if minutos > 0:
                                 df_clinica.at[idx, 'Minutos de Viaje'] = minutos
                                 df_clinica.at[idx, 'Hora de Salida'] = h_salida
                                 df_clinica.at[idx, 'Alarma'] = link_alarma
-                    guardar_dia("Clinica", fecha_str, df_clinica)
-                    st.success("¡Calculado!")
+                    exito = guardar_dia("Clinica", fecha_str, df_clinica)
+                    if exito: st.success("¡Calculado!")
                     st.rerun()
 
         with st.expander("🔄 Programar Paquetes / Reagendar"):
-            tab_ag, tab_re = st.tabs(["Múltiples Sesiones", "Reagendar / Mover Cita"])
+            tab_ag, tab_re = st.tabs(["Múltiples Sesiones", "Reagendar Cita"])
             with tab_ag:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
@@ -544,8 +462,7 @@ else:
                     elif not m_dias: st.error("Selecciona días.")
                     else:
                         sesiones_logradas, dias_buscados = 0, 0
-                        fecha_iter = m_fecha_inicio
-                        dias_obj = [dias_map[d] for d in m_dias]
+                        fecha_iter, dias_obj = m_fecha_inicio, [dias_map[d] for d in m_dias]
                         fechas_exitosas, fechas_ocupadas = [], []
                         with st.spinner('Agendando...'):
                             while sesiones_logradas < m_sesiones and dias_buscados < 365:
@@ -557,22 +474,10 @@ else:
                                     idx_hora = df_dia_futuro.index[df_dia_futuro['Hora'] == m_hora].tolist()
                                     if idx_hora:
                                         idx = idx_hora[0]
-                                        ocupado = False
                                         p_act = str(df_dia_futuro.at[idx, 'Paciente']).strip()
                                         d_act = str(df_dia_futuro.at[idx, 'Detalle / Motivo']).strip()
                                         a_act = mapa_personal_futuro.get(m_hora, "")
-                                        if p_act != "" or d_act in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_act != "" and not a_act.startswith("🩺")): ocupado = True
-                                        if idx > 0 and not ocupado:
-                                            p_ant = str(df_dia_futuro.at[idx-1, 'Paciente']).strip()
-                                            d_ant = str(df_dia_futuro.at[idx-1, 'Detalle / Motivo']).strip()
-                                            if (p_ant != "" and p_ant.upper() != "ALMUERZO") or (d_ant in ["Personal / Trámite 🛑", "Gimnasio 🏋️"]): ocupado = True
-                                        if idx < len(df_dia_futuro) - 1 and not ocupado:
-                                            p_sig = str(df_dia_futuro.at[idx+1, 'Paciente']).strip()
-                                            d_sig = str(df_dia_futuro.at[idx+1, 'Detalle / Motivo']).strip()
-                                            hora_sig = str(df_dia_futuro.at[idx+1, 'Hora']).strip() 
-                                            a_sig = mapa_personal_futuro.get(hora_sig, "") 
-                                            if p_sig != "" or d_sig in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_sig != "" and not a_sig.startswith("🩺")): ocupado = True
-
+                                        ocupado = True if p_act != "" or d_act in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_act != "" and not a_act.startswith("🩺")) else False
                                         if not ocupado:
                                             df_dia_futuro.at[idx, 'Paciente'] = m_paciente
                                             df_dia_futuro.at[idx, 'Detalle / Motivo'] = m_motivo
@@ -580,10 +485,11 @@ else:
                                             df_dia_futuro.at[idx, 'Minutos de Viaje'] = m_viaje
                                             df_dia_futuro.at[idx, 'Pago'] = "No pagada ❌"
                                             df_dia_futuro.at[idx, 'N° Sesión'] = "" 
-                                            guardar_dia("Clinica", f_str, df_dia_futuro)
-                                            fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
-                                            sesiones_logradas += 1
-                                            time.sleep(0.3)
+                                            exito_agendar = guardar_dia("Clinica", f_str, df_dia_futuro)
+                                            if exito_agendar:
+                                                fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
+                                                sesiones_logradas += 1
+                                                time.sleep(0.3)
                                         else: fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
                                 fecha_iter += timedelta(days=1)
                                 dias_buscados += 1
@@ -603,56 +509,40 @@ else:
                 with col_r3:
                     st.markdown("<br><br>", unsafe_allow_html=True)
                     btn_reagendar = st.button("🚀 Ejecutar", use_container_width=True)
-                if btn_reagendar:
-                    if cita_origen == "-- Selecciona --": st.error("Selecciona una cita.")
+                if btn_reagendar and cita_origen != "-- Selecciona --":
+                    hora_origen = cita_origen.split(" - ")[0]
+                    fila_origen = df_clinica[df_clinica['Hora'] == hora_origen].iloc[0]
+                    f_dest_str = fecha_destino.strftime("%Y-%m-%d")
+                    df_clinica_dest = cargar_datos_clinica(f_dest_str)
+                    idx_dest = df_clinica_dest.index[df_clinica_dest['Hora'] == hora_destino].tolist()[0]
+                    if str(df_clinica_dest.at[idx_dest, 'Paciente']).strip() != "":
+                        st.error("⚠️ La hora de destino está ocupada.")
                     else:
-                        hora_origen = cita_origen.split(" - ")[0]
-                        fila_origen = df_clinica[df_clinica['Hora'] == hora_origen].iloc[0]
-                        f_dest_str = fecha_destino.strftime("%Y-%m-%d")
-                        df_clinica_dest = cargar_datos_clinica(f_dest_str)
-                        df_pers_dest = cargar_datos_personal(f_dest_str)
-                        mapa_pers_dest = obtener_actividad_por_hora(df_pers_dest)
-                        idx_dest_list = df_clinica_dest.index[df_clinica_dest['Hora'] == hora_destino].tolist()
-                        if idx_dest_list:
-                            idx_dest = idx_dest_list[0]
-                            p_dest = str(df_clinica_dest.at[idx_dest, 'Paciente']).strip()
-                            d_dest = str(df_clinica_dest.at[idx_dest, 'Detalle / Motivo']).strip()
-                            a_dest = mapa_pers_dest.get(hora_destino, "")
-                            if p_dest != "" or d_dest in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_dest != "" and not a_dest.startswith("🩺")):
-                                st.error("⚠️ La hora de destino está ocupada.")
-                            else:
-                                with st.spinner("Procesando..."):
-                                    df_clinica_dest.at[idx_dest, 'Paciente'] = fila_origen['Paciente']
-                                    df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = fila_origen['Detalle / Motivo']
-                                    df_clinica_dest.at[idx_dest, 'Dirección'] = fila_origen['Dirección']
-                                    df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = fila_origen['Minutos de Viaje']
-                                    df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
-                                    df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
-                                    guardar_dia("Clinica", f_dest_str, df_clinica_dest)
-                                    if accion_reagendar == "Mover":
-                                        idx_origen = df_clinica.index[df_clinica['Hora'] == hora_origen].tolist()[0]
-                                        df_clinica.at[idx_origen, 'Paciente'] = ""
-                                        df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
-                                        df_clinica.at[idx_origen, 'Dirección'] = ""
-                                        df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
-                                        df_clinica.at[idx_origen, 'Pago'] = "-"
-                                        df_clinica.at[idx_origen, 'N° Sesión'] = ""
-                                        df_clinica.at[idx_origen, 'Ruta Maps'] = ""
-                                        df_clinica.at[idx_origen, 'Alarma'] = ""
-                                        df_clinica.at[idx_origen, 'Recordatorio'] = ""
-                                        df_clinica.at[idx_origen, 'Hora de Salida'] = ""
-                                        guardar_dia("Clinica", fecha_str, df_clinica)
-                                    st.success("✅ ¡Listo!")
-                                    time.sleep(1)
-                                    st.rerun()
+                        with st.spinner("Procesando..."):
+                            df_clinica_dest.at[idx_dest, 'Paciente'] = fila_origen['Paciente']
+                            df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = fila_origen['Detalle / Motivo']
+                            df_clinica_dest.at[idx_dest, 'Dirección'] = fila_origen['Dirección']
+                            df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = fila_origen['Minutos de Viaje']
+                            df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
+                            df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
+                            exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
+                            if exito_r and accion_reagendar == "Mover":
+                                idx_origen = df_clinica.index[df_clinica['Hora'] == hora_origen].tolist()[0]
+                                df_clinica.at[idx_origen, 'Paciente'] = ""
+                                df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
+                                df_clinica.at[idx_origen, 'Dirección'] = ""
+                                df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
+                                df_clinica.at[idx_origen, 'Pago'] = "-"
+                                df_clinica.at[idx_origen, 'N° Sesión'] = ""
+                                guardar_dia("Clinica", fecha_str, df_clinica)
+                            if exito_r:
+                                st.success("✅ ¡Listo!")
+                                time.sleep(1)
+                                st.rerun()
 
         st.caption("💡 Tip: Presiona 'Enter' luego de escribir en una celda para no perder los datos al guardar.")
         df_clinica_editado = st.data_editor(
-            df_clinica, 
-            use_container_width=True, 
-            hide_index=True, 
-            num_rows="dynamic",
-            key=f"editor_clinica_{fecha_str}",
+            df_clinica, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_clinica_{fecha_str}",
             column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Alarma", "Recordatorio", "Estado", "N° Sesión", "Pago"),
             column_config={
                 "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
@@ -660,46 +550,41 @@ else:
                 "Minutos de Viaje": st.column_config.NumberColumn("Min. Viaje", min_value=0, step=1),
                 "Hora de Salida": st.column_config.TextColumn("Salida", disabled=True),
                 "Ruta Maps": st.column_config.LinkColumn("🗺️ Mapa", disabled=True, display_text="Ver Mapa"),
-                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Añadir a Google Calendar"),
+                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Crear Alarma"),
                 "Recordatorio": st.column_config.LinkColumn("📲 WhatsApp", disabled=True, display_text="Enviar"),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
             }
         )
-        
         if btn_guardar_clinica:
-            guardar_dia("Clinica", fecha_str, df_clinica_editado)
-            guardar_dia("Personal", fecha_str, df_personal)
-            st.success("¡Agenda guardada!")
-            st.rerun()
+            exito1 = guardar_dia("Clinica", fecha_str, df_clinica_editado)
+            exito2 = guardar_dia("Personal", fecha_str, df_personal)
+            if exito1 and exito2:
+                st.success("¡Agenda guardada!")
+                st.rerun()
 
     with tab2:
         col_p1, col_p2 = st.columns([3, 1])
-        with col_p1:
-            st.header(f"🕰️ Horario Personal - {fecha_visual}")
+        with col_p1: st.header(f"🕰️ Horario Personal - {fecha_visual}")
         with col_p2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
         df_personal_editado = st.data_editor(
-            df_personal, 
-            use_container_width=True, 
-            hide_index=True, 
-            num_rows="dynamic",
-            key=f"editor_personal_{fecha_str}",
+            df_personal, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_personal_{fecha_str}",
             column_order=("Hora", "Actividad", "Categoría", "Notas"),
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
-                "Actividad": st.column_config.TextColumn("Actividad", help="Ej: Estudio Tesis, Almuerzo..."),
+                "Actividad": st.column_config.TextColumn("Actividad"),
                 "Categoría": st.column_config.SelectboxColumn("Categoría", options=["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"]),
-                "Notas": st.column_config.TextColumn("Notas")
             }
         )
         if btn_guardar_personal:
-            guardar_dia("Personal", fecha_str, df_personal_editado)
-            st.success("¡Guardado!")
-            st.rerun()
+            exito = guardar_dia("Personal", fecha_str, df_personal_editado)
+            if exito:
+                st.success("¡Guardado!")
+                st.rerun()
 
     with tab3:
         st.header("📁 Fichas Clínicas")
@@ -709,23 +594,17 @@ else:
             paciente_seleccionado = st.selectbox("🔍 Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes, key="selector_paciente_unico")
             if paciente_seleccionado != "-- Selecciona --":
                 df_fichas = cargar_tabla("Fichas")
-                if df_fichas.empty or 'Paciente' not in df_fichas.columns:
-                    df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión'])
+                if df_fichas.empty or 'Paciente' not in df_fichas.columns: df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión'])
                 if 'Valor Sesión' not in df_fichas.columns: df_fichas['Valor Sesión'] = "" 
-
                 if paciente_seleccionado not in df_fichas['Paciente'].values:
-                    nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""]})
-                    df_fichas = pd.concat([df_fichas, nueva_fila], ignore_index=True)
+                    df_fichas = pd.concat([df_fichas, pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""]})], ignore_index=True)
                     guardar_tabla("Fichas", df_fichas)
-                    
                 idx_ficha = df_fichas.index[df_fichas['Paciente'] == paciente_seleccionado][0]
                 tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(paciente_seleccionado)
-                
                 col_met1, col_met2, col_met3 = st.columns(3)
                 col_met1.metric("Sesiones", tot_sesiones)
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
-                
                 with st.form(key=f"form_ficha_{paciente_seleccionado}"):
                     col_f1, col_f2 = st.columns(2)
                     with col_f1:
@@ -734,14 +613,10 @@ else:
                     with col_f2:
                         nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']))
                         nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
-                    
-                    nuevas_notas = st.text_area("✍️ Evolución (OMNI-RES, RIR...):", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']), height=200)
+                    nuevas_notas = st.text_area("✍️ Evolución:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']), height=200)
                     if st.form_submit_button("💾 Guardar Ficha"):
-                        df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
-                        df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
-                        df_fichas.at[idx_ficha, 'Diagnóstico'] = nuevo_diag
-                        df_fichas.at[idx_ficha, 'Notas Clínicas'] = nuevas_notas
-                        df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
+                        df_fichas.at[idx_ficha, 'Teléfono'], df_fichas.at[idx_ficha, 'Edad'] = nuevo_tel, nueva_edad
+                        df_fichas.at[idx_ficha, 'Diagnóstico'], df_fichas.at[idx_ficha, 'Notas Clínicas'], df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_diag, nuevas_notas, nuevo_valor
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada!")
 
@@ -749,7 +624,6 @@ else:
         st.header("📊 Dashboard General")
         mes_dashboard = st.date_input("Mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
         stats = calcular_dashboard_mensual(mes_dashboard)
-
         col_d1, col_d2, col_d3 = st.columns(3)
         col_d1.metric("Sesiones totales", stats["total_sesiones"])
         col_d2.metric("💰 Ingresos", f"${stats['ingresos']:,.0f}".replace(",", "."))
