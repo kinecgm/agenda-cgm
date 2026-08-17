@@ -14,45 +14,36 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS AVANZADOS (CORREGIDO PARA PC Y CELULAR) ---
+# --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Diseño base de los botones del calendario (Aplica a PC y Celular) */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-        width: 100% !important; 
-        padding: 12px 0px !important; 
-        border-radius: 8px !important;
-        font-size: 1rem !important; 
-        font-weight: 700 !important; 
-        box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
-        border: 1px solid #E0E6ED !important; 
+    /* Grilla móvil para calendario */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
+        display: grid !important;
+        grid-template-columns: repeat(7, 1fr) !important;
+        gap: 4px !important;
+        width: 100% !important;
     }
-    
-    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el computador) */
-    @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-            display: flex !important;
-            flex-wrap: nowrap !important;
-        }
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
-            min-width: 13% !important; 
-            width: 14% !important; 
-            padding: 0 2px !important;
-        }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
+        width: 100% !important; min-width: 0 !important; padding: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+        width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
+        font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
+        border: 1px solid #E0E6ED !important; min-height: 45px !important;
+    }
+    @media (max-width: 500px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-            padding: 8px 0px !important; 
-            font-size: 0.85rem !important; 
-            min-height: 40px !important;
+            padding: 8px 0px !important; font-size: 0.85rem !important; border-radius: 6px !important; min-height: 40px !important;
         }
         .dia-semana { font-size: 0.75rem !important; }
         .titulo-principal { font-size: 1.8rem !important; }
         .subtitulo { font-size: 1rem !important; }
     }
-    
     button[data-baseweb="tab"] { font-size: 1rem !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -92,7 +83,8 @@ def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
-        df_limpio = df.fillna("")
+        # BLINDAJE CONTRA JSON SERIALIZABLE ERROR: Todo a string nativo
+        df_limpio = df.fillna("").astype(str)
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
@@ -527,10 +519,11 @@ else:
                         st.error("⚠️ La hora de destino está ocupada.")
                     else:
                         with st.spinner("Procesando..."):
-                            df_clinica_dest.at[idx_dest, 'Paciente'] = fila_origen['Paciente']
-                            df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = fila_origen['Detalle / Motivo']
-                            df_clinica_dest.at[idx_dest, 'Dirección'] = fila_origen['Dirección']
-                            df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = fila_origen['Minutos de Viaje']
+                            # Usamos cast de Python para evitar errores de Numpy (JSON)
+                            df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
+                            df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
+                            df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
+                            df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
                             df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
                             df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
                             exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
