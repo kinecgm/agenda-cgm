@@ -14,22 +14,27 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS AVANZADOS ---
+# --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX CELULAR Y PC) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
+    /* Diseño base de los botones del calendario (GLOBAL) */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
 
+    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el PC) */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-            display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
+            display: grid !important;
+            grid-template-columns: repeat(7, 1fr) !important;
+            gap: 4px !important;
+            width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
@@ -41,6 +46,7 @@ st.markdown("""
         .titulo-principal { font-size: 1.8rem !important; }
         .subtitulo { font-size: 1rem !important; }
     }
+    
     button[data-baseweb="tab"] { font-size: 1rem !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -66,6 +72,7 @@ def obtener_hoja(nombre):
     try: return doc.worksheet(nombre)
     except gspread.exceptions.WorksheetNotFound: return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
+# 🛡️ SISTEMA ANTI-FANTASMAS (Evita cargar tablas vacías por error de Google)
 @st.cache_data(ttl=60)
 def cargar_tabla(nombre_hoja):
     try:
@@ -74,13 +81,14 @@ def cargar_tabla(nombre_hoja):
         return pd.DataFrame(datos) if datos else pd.DataFrame()
     except Exception as e:
         st.cache_data.clear() 
-        st.error(f"⚠️ Google Sheets bloqueó la lectura por un segundo. Por seguridad, la app se pausó para no mostrarte datos vacíos. Presiona 'F5' o recarga la página.")
+        st.error(f"⚠️ Google Sheets bloqueó la lectura por un segundo. Por seguridad, la app se pausó para no mostrarte datos vacíos. Presiona la tecla 'F5' o recarga la página de tu navegador.")
         st.stop() 
 
 def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
+        # BLINDAJE CONTRA JSON SERIALIZABLE ERROR: Todo a string nativo
         df_limpio = df.fillna("").astype(str)
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
@@ -347,22 +355,17 @@ else:
                 df_clinica.at[index, 'Dirección'] = direccion
 
         if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
-            
-            # 1. LINK AL MAPA SIEMPRE SE CREA SI HAY DIRECCIÓN
             if direccion != "":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
                 df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
             else: df_clinica.at[index, 'Ruta Maps'] = ""
             
-            # 2. HORA DE SALIDA Y ALARMA AUTOMÁTICAS (Basta con poner los minutos a mano)
+            # HORA DE SALIDA Y ALARMA AUTOMÁTICAS
             if minutos > 0:
                 try:
                     tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
-                    # Se dan 5 minutos de "colchón" al tiempo de viaje
                     tiempo_salida = tiempo_agendado - timedelta(minutes=(minutos + 5))
                     df_clinica.at[index, 'Hora de Salida'] = tiempo_salida.strftime("%H:%M")
-                    
-                    # Creador de link de Alarma de Google Calendar
                     formato_fecha = fecha_str.replace("-", "")
                     h_ini = tiempo_salida.strftime("%H%M%S")
                     h_fin = tiempo_agendado.strftime("%H%M%S")
@@ -376,7 +379,6 @@ else:
                 df_clinica.at[index, 'Hora de Salida'] = ""
                 df_clinica.at[index, 'Alarma'] = ""
 
-            # 3. PAGOS Y NÚMERO DE SESIÓN
             if es_tramite or es_gimnasio:
                 df_clinica.at[index, 'Pago'] = "-"
                 df_clinica.at[index, 'N° Sesión'] = "-"
@@ -388,8 +390,6 @@ else:
                     try: float(sesion_actual); es_numero_auto = True
                     except ValueError: es_numero_auto = False
                 if es_numero_auto: df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
-            
-            # 4. WHATSAPP
             if hay_paciente:
                 telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
                 df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, paciente, fecha_visual, hora_str)
@@ -428,44 +428,46 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
         
-        with st.expander("🔍 Buscador de Pacientes"):
-            lista_pacientes_buscador = obtener_lista_pacientes()
-            if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
-            else:
-                paciente_buscar = st.selectbox("Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes_buscador, key="buscador_paciente_cal")
-                if paciente_buscar != "-- Selecciona --":
-                    df_full_clinica = cargar_tabla("Clinica")
-                    if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
-                        df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
-                        if not df_filtro.empty:
-                            st.dataframe(df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora']), use_container_width=True, hide_index=True)
-                        else: st.warning("No se encontraron sesiones.")
-
-        with st.expander("📍 Viajes y Alarmas"):
-            st.markdown("⚠️ *El botón automático usa mapas gratuitos que a veces no encuentran las calles en Chile. Lo mejor es que tú escribas los minutos a mano en la tabla y presiones 'Guardar', la app calculará la Hora de Salida y la Alarma automáticamente.*")
-            ubicacion_gps = streamlit_geolocation()
-            direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
-            if st.button("⚡ Calcular Tiempos Automáticos de Hoy"):
-                with st.spinner("Calculando..."):
-                    origen_final = direccion_base
-                    fallos = 0
-                    if ubicacion_gps and ubicacion_gps.get('latitude') is not None: origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
-                    for idx in df_clinica.index:
-                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).strip()
-                        if dir_paciente != "":
-                            minutos_gps = calcular_tiempo_gps(origen_final, dir_paciente)
-                            if minutos_gps > 0:
-                                df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
+        # --- NUEVA FUNCIÓN: AGENDAR RÁPIDO / PAQUETES ---
+        with st.expander("⚡ Agendar Existente / Paquetes / Reagendar"):
+            tab_ex, tab_ag, tab_re = st.tabs(["➕ Un Paciente Existente", "🔄 Múltiples Sesiones", "✂️ Reagendar Cita"])
+            
+            with tab_ex:
+                lista_pacs = obtener_lista_pacientes()
+                if not lista_pacs:
+                    st.info("Primero agrega un paciente manualmente en la tabla inferior para que aparezca en esta lista.")
+                else:
+                    col_e1, col_e2, col_e3 = st.columns(3)
+                    with col_e1:
+                        pac_ex = st.selectbox("1. Paciente Existente:", ["-- Selecciona --"] + lista_pacs)
+                        mot_ex = st.selectbox("Motivo de sesión:", ["Rehabilitación", "Entrenamiento", "Preventivo"], key="mot_ex")
+                    with col_e2:
+                        hora_ex = st.selectbox(f"2. Hora (para este día: {fecha_visual}):", horas_30_min, key="hora_ex")
+                    with col_e3:
+                        st.markdown("<br><br>", unsafe_allow_html=True)
+                        btn_ex = st.button("🚀 Agendar en esta hora", use_container_width=True)
+                    
+                    if btn_ex:
+                        if pac_ex == "-- Selecciona --":
+                            st.error("Por favor selecciona un paciente de la lista.")
+                        else:
+                            idx_ex = df_clinica.index[df_clinica['Hora'] == hora_ex].tolist()[0]
+                            p_act_ex = str(df_clinica.at[idx_ex, 'Paciente']).strip()
+                            if p_act_ex != "":
+                                st.error(f"⚠️ La hora {hora_ex} ya está ocupada por otro paciente.")
                             else:
-                                fallos += 1
-                    exito = guardar_dia("Clinica", fecha_str, df_clinica)
-                    if exito: 
-                        if fallos > 0: st.warning(f"Se calculó, pero el mapa no pudo encontrar {fallos} dirección(es). Pon los minutos de forma manual.")
-                        else: st.success("¡Calculado!")
-                    st.rerun()
+                                with st.spinner("Agendando..."):
+                                    df_clinica.at[idx_ex, 'Paciente'] = pac_ex
+                                    df_clinica.at[idx_ex, 'Detalle / Motivo'] = mot_ex
+                                    df_clinica.at[idx_ex, 'Dirección'] = mapa_direcciones.get(pac_ex.upper(), "")
+                                    df_clinica.at[idx_ex, 'Minutos de Viaje'] = 0
+                                    df_clinica.at[idx_ex, 'Pago'] = "No pagada ❌"
+                                    df_clinica.at[idx_ex, 'N° Sesión'] = ""
+                                    guardar_dia("Clinica", fecha_str, df_clinica)
+                                    st.success(f"✅ ¡{pac_ex} agendado a las {hora_ex}!")
+                                    time.sleep(1)
+                                    st.rerun()
 
-        with st.expander("🔄 Programar Paquetes / Reagendar"):
-            tab_ag, tab_re = st.tabs(["Múltiples Sesiones", "Reagendar Cita"])
             with tab_ag:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
@@ -508,7 +510,6 @@ else:
                                             df_dia_futuro.at[idx, 'Paciente'] = m_paciente
                                             df_dia_futuro.at[idx, 'Detalle / Motivo'] = m_motivo
                                             
-                                            # Relleno auto dirección en agendamiento múltiple
                                             dir_final = m_direccion
                                             if dir_final == "":
                                                 dir_final = mapa_direcciones.get(m_paciente.strip().upper(), "")
@@ -528,6 +529,7 @@ else:
                         if sesiones_logradas == m_sesiones: st.success("✅ ¡Agendado!")
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
+
             with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{r['Hora']} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
@@ -571,6 +573,42 @@ else:
                                 st.success("✅ ¡Listo!")
                                 time.sleep(1)
                                 st.rerun()
+
+        with st.expander("🔍 Buscador de Pacientes"):
+            lista_pacientes_buscador = obtener_lista_pacientes()
+            if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
+            else:
+                paciente_buscar = st.selectbox("Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes_buscador, key="buscador_paciente_cal")
+                if paciente_buscar != "-- Selecciona --":
+                    df_full_clinica = cargar_tabla("Clinica")
+                    if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
+                        df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
+                        if not df_filtro.empty:
+                            st.dataframe(df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora']), use_container_width=True, hide_index=True)
+                        else: st.warning("No se encontraron sesiones.")
+
+        with st.expander("📍 Viajes y Alarmas"):
+            st.markdown("⚠️ *El botón automático usa mapas gratuitos que a veces no encuentran las calles en Chile. Lo mejor es que tú escribas los minutos a mano en la tabla y presiones 'Guardar Cambios', la app calculará la Hora de Salida y la Alarma automáticamente.*")
+            ubicacion_gps = streamlit_geolocation()
+            direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
+            if st.button("⚡ Calcular Tiempos Automáticos de Hoy"):
+                with st.spinner("Calculando..."):
+                    origen_final = direccion_base
+                    fallos = 0
+                    if ubicacion_gps and ubicacion_gps.get('latitude') is not None: origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
+                    for idx in df_clinica.index:
+                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).strip()
+                        if dir_paciente != "":
+                            minutos_gps = calcular_tiempo_gps(origen_final, dir_paciente)
+                            if minutos_gps > 0:
+                                df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
+                            else:
+                                fallos += 1
+                    exito = guardar_dia("Clinica", fecha_str, df_clinica)
+                    if exito: 
+                        if fallos > 0: st.warning(f"Se calculó, pero el mapa no pudo encontrar {fallos} dirección(es). Pon los minutos de forma manual.")
+                        else: st.success("¡Calculado!")
+                    st.rerun()
 
         st.caption("💡 Tip: Presiona 'Enter' luego de escribir en una celda para no perder los datos al guardar.")
         df_clinica_editado = st.data_editor(
