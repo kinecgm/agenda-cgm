@@ -574,6 +574,7 @@ else:
                                 time.sleep(1)
                                 st.rerun()
 
+        # --- BUSCADOR CON TELETRANSPORTADOR ---
         with st.expander("🔍 Buscador de Pacientes"):
             lista_pacientes_buscador = obtener_lista_pacientes()
             if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
@@ -584,7 +585,27 @@ else:
                     if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
                         df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
                         if not df_filtro.empty:
-                            st.dataframe(df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora']), use_container_width=True, hide_index=True)
+                            df_resumen = df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora'])
+                            st.dataframe(df_resumen, use_container_width=True, hide_index=True)
+                            
+                            st.markdown("🎯 **Ir directamente al día para editar (Ej: Marcar como Pagada):**")
+                            col_b1, col_b2 = st.columns([3, 1])
+                            with col_b1:
+                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
+                                sesion_a_editar = st.selectbox("Seleccionar sesión", opciones_sesiones, label_visibility="collapsed")
+                            with col_b2:
+                                if st.button("🚀 Viajar al Día", use_container_width=True):
+                                    if sesion_a_editar != "-- Elige una sesión --":
+                                        fecha_destino_str = sesion_a_editar.split(" a las ")[0]
+                                        try:
+                                            fecha_obj = datetime.strptime(fecha_destino_str, "%Y-%m-%d").date()
+                                            st.session_state.app_fecha_sel = fecha_obj
+                                            st.session_state.app_mes_cal = fecha_obj.replace(day=1)
+                                            st.session_state.app_vista = "dia"
+                                            st.rerun()
+                                        except: pass
+                                    else:
+                                        st.error("Selecciona una cita válida de la lista.")
                         else: st.warning("No se encontraron sesiones.")
 
         with st.expander("📍 Viajes y Alarmas"):
