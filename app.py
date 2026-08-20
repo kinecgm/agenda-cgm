@@ -347,7 +347,6 @@ else:
         es_almuerzo = (paciente.upper() == "ALMUERZO")
         hay_paciente = (paciente != "" and not es_almuerzo)
         
-        # Auto-relleno de dirección desde la ficha clínica
         if hay_paciente and direccion == "":
             dir_guardada = mapa_direcciones.get(paciente.upper(), "")
             if dir_guardada != "":
@@ -360,7 +359,6 @@ else:
                 df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
             else: df_clinica.at[index, 'Ruta Maps'] = ""
             
-            # HORA DE SALIDA Y ALARMA AUTOMÁTICAS
             if minutos > 0:
                 try:
                     tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
@@ -428,33 +426,28 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
         
-        # --- NUEVA FUNCIÓN: AGENDAR RÁPIDO / PAQUETES ---
         with st.expander("⚡ Agendar Existente / Paquetes / Reagendar"):
             tab_ex, tab_ag, tab_re = st.tabs(["➕ Un Paciente Existente", "🔄 Múltiples Sesiones", "✂️ Reagendar Cita"])
             
             with tab_ex:
                 lista_pacs = obtener_lista_pacientes()
                 if not lista_pacs:
-                    st.info("Primero agrega un paciente manualmente en la tabla inferior para que aparezca en esta lista.")
+                    st.info("Primero agrega un paciente manualmente en la tabla inferior.")
                 else:
                     col_e1, col_e2, col_e3 = st.columns(3)
                     with col_e1:
                         pac_ex = st.selectbox("1. Paciente Existente:", ["-- Selecciona --"] + lista_pacs)
                         mot_ex = st.selectbox("Motivo de sesión:", ["Rehabilitación", "Entrenamiento", "Preventivo"], key="mot_ex")
                     with col_e2:
-                        hora_ex = st.selectbox(f"2. Hora (para este día: {fecha_visual}):", horas_30_min, key="hora_ex")
+                        hora_ex = st.selectbox(f"2. Hora (para este día):", horas_30_min, key="hora_ex")
                     with col_e3:
                         st.markdown("<br><br>", unsafe_allow_html=True)
                         btn_ex = st.button("🚀 Agendar en esta hora", use_container_width=True)
-                    
                     if btn_ex:
-                        if pac_ex == "-- Selecciona --":
-                            st.error("Por favor selecciona un paciente de la lista.")
+                        if pac_ex == "-- Selecciona --": st.error("Por favor selecciona un paciente.")
                         else:
                             idx_ex = df_clinica.index[df_clinica['Hora'] == hora_ex].tolist()[0]
-                            p_act_ex = str(df_clinica.at[idx_ex, 'Paciente']).strip()
-                            if p_act_ex != "":
-                                st.error(f"⚠️ La hora {hora_ex} ya está ocupada por otro paciente.")
+                            if str(df_clinica.at[idx_ex, 'Paciente']).strip() != "": st.error("⚠️ Esta hora ya está ocupada.")
                             else:
                                 with st.spinner("Agendando..."):
                                     df_clinica.at[idx_ex, 'Paciente'] = pac_ex
@@ -484,7 +477,6 @@ else:
                     m_viaje = st.number_input("Viaje (min):", min_value=0, value=0, step=1)
                     st.markdown("<br>", unsafe_allow_html=True)
                     btn_agendar = st.button("🚀 Programar", use_container_width=True)
-
                 if btn_agendar:
                     if m_paciente.strip() == "": st.error("Ingresa el paciente.")
                     elif not m_dias: st.error("Selecciona días.")
@@ -509,12 +501,9 @@ else:
                                         if not ocupado:
                                             df_dia_futuro.at[idx, 'Paciente'] = m_paciente
                                             df_dia_futuro.at[idx, 'Detalle / Motivo'] = m_motivo
-                                            
                                             dir_final = m_direccion
-                                            if dir_final == "":
-                                                dir_final = mapa_direcciones.get(m_paciente.strip().upper(), "")
+                                            if dir_final == "": dir_final = mapa_direcciones.get(m_paciente.strip().upper(), "")
                                             df_dia_futuro.at[idx, 'Dirección'] = dir_final
-                                            
                                             df_dia_futuro.at[idx, 'Minutos de Viaje'] = m_viaje
                                             df_dia_futuro.at[idx, 'Pago'] = "No pagada ❌"
                                             df_dia_futuro.at[idx, 'N° Sesión'] = "" 
@@ -609,7 +598,7 @@ else:
                         else: st.warning("No se encontraron sesiones.")
 
         with st.expander("📍 Viajes y Alarmas"):
-            st.markdown("⚠️ *El botón automático usa mapas gratuitos que a veces no encuentran las calles en Chile. Lo mejor es que tú escribas los minutos a mano en la tabla y presiones 'Guardar Cambios', la app calculará la Hora de Salida y la Alarma automáticamente.*")
+            st.markdown("⚠️ *El botón automático usa mapas gratuitos que a veces no encuentran las calles. Lo mejor es que tú escribas los minutos a mano en la tabla y presiones 'Guardar Cambios'.*")
             ubicacion_gps = streamlit_geolocation()
             direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
             if st.button("⚡ Calcular Tiempos Automáticos de Hoy"):
@@ -621,13 +610,11 @@ else:
                         dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).strip()
                         if dir_paciente != "":
                             minutos_gps = calcular_tiempo_gps(origen_final, dir_paciente)
-                            if minutos_gps > 0:
-                                df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
-                            else:
-                                fallos += 1
+                            if minutos_gps > 0: df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
+                            else: fallos += 1
                     exito = guardar_dia("Clinica", fecha_str, df_clinica)
                     if exito: 
-                        if fallos > 0: st.warning(f"Se calculó, pero el mapa no pudo encontrar {fallos} dirección(es). Pon los minutos de forma manual.")
+                        if fallos > 0: st.warning(f"Se calculó, pero el mapa falló en {fallos} dirección(es). Pon los minutos manualmente.")
                         else: st.success("¡Calculado!")
                     st.rerun()
 
@@ -714,16 +701,30 @@ else:
                         nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
                         st.markdown("<br>", unsafe_allow_html=True) 
                         
-                    nuevas_notas = st.text_area("✍️ Evolución:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200)
+                    st.markdown("---")
+                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100, help="Escribe aquí los detalles de la sesión de hoy. Al guardar, se añadirá al historial con la fecha automática.")
+                    nuevas_notas = st.text_area("✍️ Historial Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200, help="Puedes editar el historial pasado manualmente si necesitas corregir algo.")
+                    
                     if st.form_submit_button("💾 Guardar Ficha"):
                         df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
                         df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
                         df_fichas.at[idx_ficha, 'Dirección'] = nuevo_dir
                         df_fichas.at[idx_ficha, 'Diagnóstico'] = nuevo_diag
-                        df_fichas.at[idx_ficha, 'Notas Clínicas'] = nuevas_notas
+                        
+                        texto_final = nuevas_notas
+                        if nota_hoy.strip() != "":
+                            fecha_actual = date.today().strftime("%d/%m/%Y")
+                            if texto_final.strip() != "":
+                                texto_final = f"{texto_final.strip()}\n\n📅 [{fecha_actual}] - {nota_hoy.strip()}"
+                            else:
+                                texto_final = f"📅 [{fecha_actual}] - {nota_hoy.strip()}"
+                                
+                        df_fichas.at[idx_ficha, 'Notas Clínicas'] = texto_final
                         df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada!")
+                        time.sleep(1)
+                        st.rerun()
 
     with tab4:
         st.header("📊 Dashboard General")
