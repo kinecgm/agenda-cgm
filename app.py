@@ -477,6 +477,7 @@ else:
                     m_viaje = st.number_input("Viaje (min):", min_value=0, value=0, step=1)
                     st.markdown("<br>", unsafe_allow_html=True)
                     btn_agendar = st.button("🚀 Programar", use_container_width=True)
+
                 if btn_agendar:
                     if m_paciente.strip() == "": st.error("Ingresa el paciente.")
                     elif not m_dias: st.error("Selecciona días.")
@@ -649,6 +650,39 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
+        # --- NUEVA FUNCIÓN: BLOQUEO RÁPIDO DE HORAS ---
+        with st.expander("⏳ Bloqueo Rápido de Tiempo (60 min o más)"):
+            st.markdown("Usa esta herramienta para bloquear varias horas seguidas en un par de clics.")
+            col_b1, col_b2, col_b3 = st.columns(3)
+            with col_b1:
+                hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
+                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
+            with col_b2:
+                act_b = st.text_input("Actividad:")
+                cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
+            with col_b3:
+                st.markdown("<br><br>", unsafe_allow_html=True)
+                btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
+                
+            if btn_aplicar_bloqueo:
+                if act_b.strip() == "":
+                    st.error("Escribe el nombre de la actividad.")
+                else:
+                    slots_necesarios = int(duracion_b.split(" ")[0]) // 30
+                    idx_inicio = df_personal.index[df_personal['Hora'] == hora_inicio_b].tolist()[0]
+                    idx_fin = min(idx_inicio + slots_necesarios, len(df_personal))
+                    
+                    with st.spinner("Bloqueando..."):
+                        for i in range(idx_inicio, idx_fin):
+                            # Solo bloquea si no hay un paciente atendiendo
+                            if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                                df_personal.at[i, 'Actividad'] = act_b
+                                df_personal.at[i, 'Categoría'] = cat_b
+                        guardar_dia("Personal", fecha_str, df_personal)
+                        st.success(f"✅ ¡Bloqueo de {duracion_b} aplicado!")
+                        time.sleep(1)
+                        st.rerun()
+
         df_personal_editado = st.data_editor(
             df_personal, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_personal_{fecha_str}",
             column_order=("Hora", "Actividad", "Categoría", "Notas"),
@@ -702,8 +736,8 @@ else:
                         st.markdown("<br>", unsafe_allow_html=True) 
                         
                     st.markdown("---")
-                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100, help="Escribe aquí los detalles de la sesión de hoy. Al guardar, se añadirá al historial con la fecha automática.")
-                    nuevas_notas = st.text_area("✍️ Historial Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200, help="Puedes editar el historial pasado manualmente si necesitas corregir algo.")
+                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100, help="Escribe aquí los detalles de la sesión. Al guardar, se añadirá al historial con la fecha automática.")
+                    nuevas_notas = st.text_area("✍️ Historial Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200, help="Puedes editar el historial pasado manualmente.")
                     
                     if st.form_submit_button("💾 Guardar Ficha"):
                         df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
