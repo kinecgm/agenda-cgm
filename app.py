@@ -14,26 +14,21 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS AVANZADOS ---
+# --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX CELULAR Y PC) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Diseño base de botones del calendario */
+    /* Diseño base de los botones del calendario (GLOBAL) */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
 
-    /* Diseño de la Línea Roja de Progreso */
-    .stProgress > div > div > div > div {
-        background-image: linear-gradient(to right, #E74C3C, #C0392B) !important;
-    }
-
-    /* MAGIA EXCLUSIVA PARA CELULARES */
+    /* 📱 MAGIA EXCLUSIVA PARA CELULARES */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
             display: grid !important;
@@ -161,8 +156,7 @@ else:
 
     def guardar_dia(tipo, fecha, df_dia):
         df_guardar = df_dia.copy()
-        
-        # Blindaje: Limpiamos el punto rojo antes de guardar en la nube
+        # Limpiar puntos rojos de tiempo antes de guardar
         if 'Hora' in df_guardar.columns:
             df_guardar['Hora'] = df_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
             
@@ -182,7 +176,7 @@ else:
         guardar_tabla(tipo, df_final)
         return True 
 
-    # --- RESTO DE FUNCIONES ---
+    # --- FUNCIONES ---
     def cargar_datos_clinica(fecha):
         df_completo = cargar_tabla("Clinica")
         if not df_completo.empty and 'Fecha' in df_completo.columns:
@@ -307,11 +301,11 @@ else:
         contador = len(df_hist[df_hist['FechaHora'] <= fecha_hora_actual])
         return str(contador if contador > 0 else 1)
 
-    # --- CARGA DE DATOS ---
+    # --- CARGA Y PROTECCIÓN DE DATOS DEL DÍA ---
     df_clinica = cargar_datos_clinica(fecha_str)
     df_personal = cargar_datos_personal(fecha_str)
 
-    # --- INDICADOR VISUAL (EL PUNTO ROJO) ---
+    # --- EL PUNTO ROJO EN LA TABLA ---
     if es_hoy:
         try:
             ahora_chile = pd.Timestamp.now('America/Santiago')
@@ -325,7 +319,6 @@ else:
                     break
         except: pass
 
-    # LIMPIEZA INICIAL DE COLUMNAS
     df_clinica['Paciente'] = df_clinica['Paciente'].fillna("") 
     df_clinica['Dirección'] = df_clinica['Dirección'].fillna("").astype(str)
     df_clinica['Minutos de Viaje'] = pd.to_numeric(df_clinica['Minutos de Viaje'], errors='coerce').fillna(0).astype(int)
@@ -449,19 +442,38 @@ else:
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1: 
             st.header(f"📅 Agenda Clínica - {fecha_visual}")
-            # --- LA LÍNEA ROJA DE PROGRESO ---
+            
+            # --- 🚀 NUEVO GPS VISUAL DEL DÍA (LÍNEA DE TIEMPO) ---
             if es_hoy:
                 try:
                     ahora_chile = pd.Timestamp.now('America/Santiago')
                     inicio_dia = ahora_chile.replace(hour=8, minute=0, second=0, microsecond=0)
                     fin_dia = ahora_chile.replace(hour=20, minute=30, second=0, microsecond=0)
+                    
                     if inicio_dia <= ahora_chile <= fin_dia:
-                        total_seg = (fin_dia - inicio_dia).total_seconds()
-                        trans_seg = (ahora_chile - inicio_dia).total_seconds()
-                        pct = trans_seg / total_seg
-                        min_restantes = int((fin_dia - ahora_chile).total_seconds() / 60)
-                        st.markdown(f"<p style='color:#E74C3C; font-weight:bold; margin-bottom: -10px; margin-top: -10px;'>⏱️ Tiempo restante ({ahora_chile.strftime('%H:%M')}): Quedan {min_restantes} min de jornada clínica.</p>", unsafe_allow_html=True)
-                        st.progress(pct)
+                        total_minutos = (fin_dia - inicio_dia).total_seconds() / 60
+                        minutos_transcurridos = (ahora_chile - inicio_dia).total_seconds() / 60
+                        pct = max(0, min(100, (minutos_transcurridos / total_minutos) * 100))
+                        hora_actual_str = ahora_chile.strftime('%H:%M')
+                        
+                        linea_html = f"""
+                        <div style="margin: 25px 0 35px 0; padding: 15px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border: 1px solid #f0f2f6;">
+                            <p style="margin-top: 0; margin-bottom: 20px; color: #2C3E50; font-weight: bold; font-size: 0.95rem;">
+                                ⏳ Tracking de Jornada (Faltan {int(total_minutos - minutos_transcurridos)} min para terminar)
+                            </p>
+                            <div style="position: relative; width: 100%; height: 6px; background-color: #E0E6ED; border-radius: 3px;">
+                                <div style="position: absolute; left: 0; top: 0; height: 100%; width: {pct}%; background-color: #E74C3C; border-radius: 3px;"></div>
+                                <div style="position: absolute; left: {pct}%; top: -7px; transform: translateX(-50%); width: 20px; height: 20px; background-color: #E74C3C; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                                <div style="position: absolute; left: {pct}%; top: -35px; transform: translateX(-50%); background-color: #E74C3C; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; z-index: 10;">{hora_actual_str}</div>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; color: #95a5a6; font-size: 0.8rem; font-weight: 600; margin-top: 15px;">
+                                <span>08:00</span>
+                                <span>14:00</span>
+                                <span>20:30</span>
+                            </div>
+                        </div>
+                        """
+                        st.markdown(linea_html, unsafe_allow_html=True)
                 except: pass
                 
         with col_t2:
@@ -564,7 +576,7 @@ else:
 
             with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
-                opciones_citas = ["-- Selecciona --"] + [f"{r['Hora']} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
+                opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
                 with col_r1:
                     cita_origen = st.selectbox("Cita de hoy:", opciones_citas)
@@ -608,7 +620,6 @@ else:
                                     time.sleep(1)
                                     st.rerun()
 
-        # --- BUSCADOR CON TELETRANSPORTADOR ---
         with st.expander("🔍 Buscador de Pacientes"):
             lista_pacientes_buscador = obtener_lista_pacientes()
             if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
@@ -622,7 +633,7 @@ else:
                             df_resumen = df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora'])
                             st.dataframe(df_resumen, use_container_width=True, hide_index=True)
                             
-                            st.markdown("🎯 **Ir directamente al día para editar (Ej: Marcar como Pagada):**")
+                            st.markdown("🎯 **Ir directamente al día para editar:**")
                             col_b1, col_b2 = st.columns([3, 1])
                             with col_b1:
                                 opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
@@ -638,8 +649,7 @@ else:
                                             st.session_state.app_vista = "dia"
                                             st.rerun()
                                         except: pass
-                                    else:
-                                        st.error("Selecciona una cita válida de la lista.")
+                                    else: st.error("Selecciona una cita válida de la lista.")
                         else: st.warning("No se encontraron sesiones.")
 
         with st.expander("📍 Viajes y Alarmas"):
@@ -696,7 +706,6 @@ else:
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
         with st.expander("⏳ Bloqueo Rápido de Tiempo (60 min o más)"):
-            st.markdown("Usa esta herramienta para bloquear varias horas seguidas en un par de clics.")
             col_b1, col_b2, col_b3 = st.columns(3)
             with col_b1:
                 hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
@@ -709,8 +718,7 @@ else:
                 btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
                 
             if btn_aplicar_bloqueo:
-                if act_b.strip() == "":
-                    st.error("Escribe el nombre de la actividad.")
+                if act_b.strip() == "": st.error("Escribe el nombre de la actividad.")
                 else:
                     slots_necesarios = int(duracion_b.split(" ")[0]) // 30
                     idx_inicio = df_personal.index[df_personal['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_inicio_b].tolist()[0]
@@ -779,8 +787,8 @@ else:
                         st.markdown("<br>", unsafe_allow_html=True) 
                         
                     st.markdown("---")
-                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100, help="Escribe aquí los detalles de la sesión. Al guardar, se añadirá al historial con la fecha automática.")
-                    nuevas_notas = st.text_area("✍️ Historial Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200, help="Puedes editar el historial pasado manualmente.")
+                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100)
+                    nuevas_notas = st.text_area("✍️ Historial Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200)
                     
                     if st.form_submit_button("💾 Guardar Ficha"):
                         df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
