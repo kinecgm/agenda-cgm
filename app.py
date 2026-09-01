@@ -156,7 +156,6 @@ else:
 
     def guardar_dia(tipo, fecha, df_dia):
         df_guardar = df_dia.copy()
-        # Limpiar puntos rojos de tiempo antes de guardar
         if 'Hora' in df_guardar.columns:
             df_guardar['Hora'] = df_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
             
@@ -262,7 +261,10 @@ else:
         solo_digitos = "".join(ch for ch in str(telefono) if ch.isdigit())
         if solo_digitos == "": return ""
         if not solo_digitos.startswith("56"): solo_digitos = "56" + solo_digitos.lstrip("0")
-        mensaje = f"Hola {nombre_paciente.title()}! Te confirmo tu sesión de kinesiología el {fecha_visual_str} a las {hora_str} hrs. Cualquier cosa avísame 🙂"
+        
+        # --- NUEVO MENSAJE NEUTRO ---
+        mensaje = f"Hola, ¿qué tal? Quería confirmar la sesión agendada para el {fecha_visual_str} a las {hora_str} hrs. Cualquier cosa me avisas 🙂"
+        
         texto_codificado = urllib.parse.quote(mensaje)
         return f"https://wa.me/{solo_digitos}?text={texto_codificado}"
 
