@@ -14,21 +14,26 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS AVANZADOS (UI/UX CELULAR Y PC) ---
+# --- ESTILOS PERSONALIZADOS AVANZADOS ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Diseño base de los botones del calendario (GLOBAL) */
+    /* Diseño base de botones del calendario */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
 
-    /* 📱 MAGIA EXCLUSIVA PARA CELULARES (Se desactiva en el PC) */
+    /* Diseño de la Línea Roja de Progreso */
+    .stProgress > div > div > div > div {
+        background-image: linear-gradient(to right, #E74C3C, #C0392B) !important;
+    }
+
+    /* MAGIA EXCLUSIVA PARA CELULARES */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
             display: grid !important;
@@ -72,7 +77,7 @@ def obtener_hoja(nombre):
     try: return doc.worksheet(nombre)
     except gspread.exceptions.WorksheetNotFound: return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ SISTEMA ANTI-FANTASMAS (Evita cargar tablas vacías por error de Google)
+# 🛡️ SISTEMA ANTI-FANTASMAS
 @st.cache_data(ttl=60)
 def cargar_tabla(nombre_hoja):
     try:
@@ -88,7 +93,6 @@ def guardar_tabla(nombre_hoja, df):
     hoja = obtener_hoja(nombre_hoja)
     hoja.clear()
     if not df.empty:
-        # BLINDAJE CONTRA JSON SERIALIZABLE ERROR: Todo a string nativo
         df_limpio = df.fillna("").astype(str)
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
@@ -153,9 +157,15 @@ else:
     fecha_str = st.session_state.app_fecha_sel.strftime("%Y-%m-%d")
     fecha_visual = st.session_state.app_fecha_sel.strftime("%d/%m/%Y")
     horas_30_min = ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00", "17:30", "18:00", "18:30", "19:00", "19:30", "20:00"]
+    es_hoy = (st.session_state.app_fecha_sel == date.today())
 
     def guardar_dia(tipo, fecha, df_dia):
         df_guardar = df_dia.copy()
+        
+        # Blindaje: Limpiamos el punto rojo antes de guardar en la nube
+        if 'Hora' in df_guardar.columns:
+            df_guardar['Hora'] = df_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+            
         df_guardar.insert(0, 'Fecha', fecha)
         try:
             hoja_segura = obtener_hoja(tipo)
@@ -195,7 +205,8 @@ else:
 
     def obtener_actividad_por_hora(df_personal):
         if df_personal.empty or 'Hora' not in df_personal.columns: return {}
-        return dict(zip(df_personal['Hora'].astype(str).str.strip(), df_personal['Actividad'].astype(str).str.strip()))
+        clean_hora = df_personal['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+        return dict(zip(clean_hora, df_personal['Actividad'].astype(str).str.strip()))
 
     def calcular_tiempo_gps(origen_coords_o_texto, destino):
         try:
@@ -296,10 +307,25 @@ else:
         contador = len(df_hist[df_hist['FechaHora'] <= fecha_hora_actual])
         return str(contador if contador > 0 else 1)
 
-    # --- CARGA Y PROTECCIÓN DE DATOS DEL DÍA ---
+    # --- CARGA DE DATOS ---
     df_clinica = cargar_datos_clinica(fecha_str)
     df_personal = cargar_datos_personal(fecha_str)
 
+    # --- INDICADOR VISUAL (EL PUNTO ROJO) ---
+    if es_hoy:
+        try:
+            ahora_chile = pd.Timestamp.now('America/Santiago')
+            hora_actual = ahora_chile.time()
+            for idx, h_str in enumerate(horas_30_min):
+                h_obj = datetime.strptime(h_str, "%H:%M").time()
+                h_next = datetime.strptime(horas_30_min[idx+1], "%H:%M").time() if idx < len(horas_30_min)-1 else datetime.strptime("20:30", "%H:%M").time()
+                if h_obj <= hora_actual < h_next:
+                    df_clinica.at[idx, 'Hora'] = f"🔴 {h_str}"
+                    df_personal.at[idx, 'Hora'] = f"🔴 {h_str}"
+                    break
+        except: pass
+
+    # LIMPIEZA INICIAL DE COLUMNAS
     df_clinica['Paciente'] = df_clinica['Paciente'].fillna("") 
     df_clinica['Dirección'] = df_clinica['Dirección'].fillna("").astype(str)
     df_clinica['Minutos de Viaje'] = pd.to_numeric(df_clinica['Minutos de Viaje'], errors='coerce').fillna(0).astype(int)
@@ -335,7 +361,7 @@ else:
     for index in df_clinica.index:
         paciente = str(df_clinica.at[index, 'Paciente']).strip()
         direccion = str(df_clinica.at[index, 'Dirección']).strip()
-        hora_str = str(df_clinica.at[index, 'Hora']).strip()
+        hora_str = str(df_clinica.at[index, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
         minutos = int(df_clinica.at[index, 'Minutos de Viaje'])
         pago_actual = str(df_clinica.at[index, 'Pago']).strip()
         sesion_actual = str(df_clinica.at[index, 'N° Sesión']).strip()
@@ -421,7 +447,23 @@ else:
 
     with tab1:
         col_t1, col_t2 = st.columns([3, 1])
-        with col_t1: st.header(f"📅 Agenda Clínica - {fecha_visual}")
+        with col_t1: 
+            st.header(f"📅 Agenda Clínica - {fecha_visual}")
+            # --- LA LÍNEA ROJA DE PROGRESO ---
+            if es_hoy:
+                try:
+                    ahora_chile = pd.Timestamp.now('America/Santiago')
+                    inicio_dia = ahora_chile.replace(hour=8, minute=0, second=0, microsecond=0)
+                    fin_dia = ahora_chile.replace(hour=20, minute=30, second=0, microsecond=0)
+                    if inicio_dia <= ahora_chile <= fin_dia:
+                        total_seg = (fin_dia - inicio_dia).total_seconds()
+                        trans_seg = (ahora_chile - inicio_dia).total_seconds()
+                        pct = trans_seg / total_seg
+                        min_restantes = int((fin_dia - ahora_chile).total_seconds() / 60)
+                        st.markdown(f"<p style='color:#E74C3C; font-weight:bold; margin-bottom: -10px; margin-top: -10px;'>⏱️ Tiempo restante ({ahora_chile.strftime('%H:%M')}): Quedan {min_restantes} min de jornada clínica.</p>", unsafe_allow_html=True)
+                        st.progress(pct)
+                except: pass
+                
         with col_t2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
@@ -446,7 +488,7 @@ else:
                     if btn_ex:
                         if pac_ex == "-- Selecciona --": st.error("Por favor selecciona un paciente.")
                         else:
-                            idx_ex = df_clinica.index[df_clinica['Hora'] == hora_ex].tolist()[0]
+                            idx_ex = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_ex].tolist()[0]
                             if str(df_clinica.at[idx_ex, 'Paciente']).strip() != "": st.error("⚠️ Esta hora ya está ocupada.")
                             else:
                                 with st.spinner("Agendando..."):
@@ -492,7 +534,7 @@ else:
                                     df_dia_futuro = cargar_datos_clinica(f_str)
                                     df_pers_futuro = cargar_datos_personal(f_str)
                                     mapa_personal_futuro = obtener_actividad_por_hora(df_pers_futuro) 
-                                    idx_hora = df_dia_futuro.index[df_dia_futuro['Hora'] == m_hora].tolist()
+                                    idx_hora = df_dia_futuro.index[df_dia_futuro['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == m_hora].tolist()
                                     if idx_hora:
                                         idx = idx_hora[0]
                                         p_act = str(df_dia_futuro.at[idx, 'Paciente']).strip()
@@ -534,35 +576,37 @@ else:
                     st.markdown("<br><br>", unsafe_allow_html=True)
                     btn_reagendar = st.button("🚀 Ejecutar", use_container_width=True)
                 if btn_reagendar and cita_origen != "-- Selecciona --":
-                    hora_origen = cita_origen.split(" - ")[0]
-                    fila_origen = df_clinica[df_clinica['Hora'] == hora_origen].iloc[0]
-                    f_dest_str = fecha_destino.strftime("%Y-%m-%d")
-                    df_clinica_dest = cargar_datos_clinica(f_dest_str)
-                    idx_dest = df_clinica_dest.index[df_clinica_dest['Hora'] == hora_destino].tolist()[0]
-                    if str(df_clinica_dest.at[idx_dest, 'Paciente']).strip() != "":
-                        st.error("⚠️ La hora de destino está ocupada.")
-                    else:
-                        with st.spinner("Procesando..."):
-                            df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
-                            df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
-                            df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
-                            df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
-                            df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
-                            df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
-                            exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
-                            if exito_r and accion_reagendar == "Mover":
-                                idx_origen = df_clinica.index[df_clinica['Hora'] == hora_origen].tolist()[0]
-                                df_clinica.at[idx_origen, 'Paciente'] = ""
-                                df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
-                                df_clinica.at[idx_origen, 'Dirección'] = ""
-                                df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
-                                df_clinica.at[idx_origen, 'Pago'] = "-"
-                                df_clinica.at[idx_origen, 'N° Sesión'] = ""
-                                guardar_dia("Clinica", fecha_str, df_clinica)
-                            if exito_r:
-                                st.success("✅ ¡Listo!")
-                                time.sleep(1)
-                                st.rerun()
+                    hora_origen = cita_origen.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").strip()
+                    idx_origen_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
+                    if idx_origen_list:
+                        fila_origen = df_clinica.iloc[idx_origen_list[0]]
+                        f_dest_str = fecha_destino.strftime("%Y-%m-%d")
+                        df_clinica_dest = cargar_datos_clinica(f_dest_str)
+                        idx_dest = df_clinica_dest.index[df_clinica_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()[0]
+                        if str(df_clinica_dest.at[idx_dest, 'Paciente']).strip() != "":
+                            st.error("⚠️ La hora de destino está ocupada.")
+                        else:
+                            with st.spinner("Procesando..."):
+                                df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
+                                df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
+                                df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
+                                df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
+                                df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
+                                df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
+                                exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
+                                if exito_r and accion_reagendar == "Mover":
+                                    idx_origen = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()[0]
+                                    df_clinica.at[idx_origen, 'Paciente'] = ""
+                                    df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
+                                    df_clinica.at[idx_origen, 'Dirección'] = ""
+                                    df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
+                                    df_clinica.at[idx_origen, 'Pago'] = "-"
+                                    df_clinica.at[idx_origen, 'N° Sesión'] = ""
+                                    guardar_dia("Clinica", fecha_str, df_clinica)
+                                if exito_r:
+                                    st.success("✅ ¡Listo!")
+                                    time.sleep(1)
+                                    st.rerun()
 
         # --- BUSCADOR CON TELETRANSPORTADOR ---
         with st.expander("🔍 Buscador de Pacientes"):
@@ -608,7 +652,7 @@ else:
                     fallos = 0
                     if ubicacion_gps and ubicacion_gps.get('latitude') is not None: origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
                     for idx in df_clinica.index:
-                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).strip()
+                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
                         if dir_paciente != "":
                             minutos_gps = calcular_tiempo_gps(origen_final, dir_paciente)
                             if minutos_gps > 0: df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
@@ -624,6 +668,7 @@ else:
             df_clinica, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_clinica_{fecha_str}",
             column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Alarma", "Recordatorio", "Estado", "N° Sesión", "Pago"),
             column_config={
+                "Hora": st.column_config.TextColumn("Hora", disabled=True),
                 "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
                 "Dirección": st.column_config.TextColumn("Dirección"),
                 "Minutos de Viaje": st.column_config.NumberColumn("Min. Viaje", min_value=0, step=1),
@@ -650,7 +695,6 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
-        # --- NUEVA FUNCIÓN: BLOQUEO RÁPIDO DE HORAS ---
         with st.expander("⏳ Bloqueo Rápido de Tiempo (60 min o más)"):
             st.markdown("Usa esta herramienta para bloquear varias horas seguidas en un par de clics.")
             col_b1, col_b2, col_b3 = st.columns(3)
@@ -669,12 +713,11 @@ else:
                     st.error("Escribe el nombre de la actividad.")
                 else:
                     slots_necesarios = int(duracion_b.split(" ")[0]) // 30
-                    idx_inicio = df_personal.index[df_personal['Hora'] == hora_inicio_b].tolist()[0]
+                    idx_inicio = df_personal.index[df_personal['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_inicio_b].tolist()[0]
                     idx_fin = min(idx_inicio + slots_necesarios, len(df_personal))
                     
                     with st.spinner("Bloqueando..."):
                         for i in range(idx_inicio, idx_fin):
-                            # Solo bloquea si no hay un paciente atendiendo
                             if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
                                 df_personal.at[i, 'Actividad'] = act_b
                                 df_personal.at[i, 'Categoría'] = cat_b
