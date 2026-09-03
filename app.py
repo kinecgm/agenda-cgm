@@ -52,7 +52,6 @@ st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</
 @st.cache_resource
 def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
-    # Se agregó el permiso para modificar eventos de Google Calendar
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets", 
         "https://www.googleapis.com/auth/drive",
@@ -65,7 +64,7 @@ def conectar_bd():
 try: 
     doc, credenciales_gcp = conectar_bd()
 except Exception as e:
-    st.error(f"Error conectando a la base de datos: {e}")
+    st.error(f"🚨 Error conectando credenciales: {e}")
     st.stop()
 
 def obtener_hoja(nombre):
@@ -80,7 +79,7 @@ def cargar_tabla(nombre_hoja):
         return pd.DataFrame(datos) if datos else pd.DataFrame()
     except Exception as e:
         st.cache_data.clear() 
-        st.error(f"⚠️ Google Sheets bloqueó la lectura por un segundo. Por seguridad, la app se pausó. Presiona F5.")
+        st.error(f"🚨 Error real de Google (Lectura): {e}")
         st.stop() 
 
 def guardar_tabla(nombre_hoja, df):
@@ -164,7 +163,7 @@ else:
             datos_seguros = hoja_segura.get_all_records()
             df_completo = pd.DataFrame(datos_seguros) if datos_seguros else pd.DataFrame()
         except Exception as e:
-            st.error(f"🚨 SEGURIDAD ACTIVADA: Google rechazó la conexión. Intenta de nuevo en 1 minuto.")
+            st.error(f"🚨 Error real de Google (Escritura): {e}")
             return False 
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_completo = df_completo[df_completo['Fecha'] != fecha]
@@ -647,7 +646,6 @@ else:
                                     else: st.error("Selecciona una cita válida de la lista.")
                         else: st.warning("No se encontraron sesiones.")
 
-        # --- NUEVA FUNCIÓN: SINCRONIZACIÓN DE GOOGLE CALENDAR ---
         with st.expander("📲 Enviar a Google Calendar (Pop-ups automáticos)"):
             st.markdown("""
             Asegúrate de haber seguido los pasos previos:
@@ -678,7 +676,6 @@ else:
                                     h_ini = datetime.strptime(f"{fecha_str} {hora}", "%Y-%m-%d %H:%M")
                                     h_fin = h_ini + timedelta(minutes=45)
                                     
-                                    # El Pop Up te avisará 30 min + tiempo de viaje antes.
                                     minutos_aviso = 30 + min_viaje
                                     
                                     evento = {
@@ -700,7 +697,6 @@ else:
                                             ],
                                         },
                                     }
-                                    # Empujar el evento al calendario
                                     service.events().insert(calendarId=correo_cal, body=evento).execute()
                                     eventos_creados += 1
                             
@@ -713,7 +709,7 @@ else:
                     except ImportError:
                         st.error("🚨 Falta instalar la librería. Ve a tu GitHub y agrega `google-api-python-client` en tu archivo `requirements.txt`.")
                     except Exception as e:
-                        st.error(f"🚨 Error de permisos con Google: Revisa que hayas compartido tu calendario con el robot. Detalle: {e}")
+                        st.error(f"🚨 Error de permisos con Google: {e}")
 
         with st.expander("📍 Viajes y Tiempos"):
             st.markdown("⚠️ *Tú escribes los minutos a mano en la tabla y al guardar, la app calcula la Hora de Salida.*")
