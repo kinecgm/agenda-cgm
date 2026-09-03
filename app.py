@@ -59,7 +59,9 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    return cliente, creds # <-- AQUÍ ESTÁ EL ERROR
+    # LÍNEA CORREGIDA: Asignamos explícitamente el documento de Google Sheets
+    doc_kine = cliente.open("Base_Datos_Kine")
+    return doc_kine, creds
 
 try: 
     doc, credenciales_gcp = conectar_bd()
