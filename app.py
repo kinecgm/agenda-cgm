@@ -59,7 +59,7 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    return cliente, creds
+    return cliente, creds # <-- AQUÍ ESTÁ EL ERROR
 
 try: 
     doc, credenciales_gcp = conectar_bd()
