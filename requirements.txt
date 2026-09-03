@@ -5,3 +5,4 @@ google-auth
 geopy
 requests
 streamlit-geolocation
+google-api-python-client
