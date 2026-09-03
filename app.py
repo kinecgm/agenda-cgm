@@ -21,20 +21,15 @@ st.markdown("""
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Diseño base de los botones del calendario (GLOBAL) */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 700 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
 
-    /* 📱 MAGIA EXCLUSIVA PARA CELULARES */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-            display: grid !important;
-            grid-template-columns: repeat(7, 1fr) !important;
-            gap: 4px !important;
-            width: 100% !important;
+            display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
@@ -46,7 +41,6 @@ st.markdown("""
         .titulo-principal { font-size: 1.8rem !important; }
         .subtitulo { font-size: 1rem !important; }
     }
-    
     button[data-baseweb="tab"] { font-size: 1rem !important; font-weight: 600 !important; }
 </style>
 """, unsafe_allow_html=True)
@@ -54,16 +48,22 @@ st.markdown("""
 st.markdown('<p class="titulo-principal">Centro de Comando</p>', unsafe_allow_html=True)
 st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</p>', unsafe_allow_html=True)
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN A GOOGLE SHEETS Y CALENDAR ---
 @st.cache_resource
 def conectar_bd():
     credenciales_json = json.loads(st.secrets["gcp_credentials"], strict=False)
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+    # Se agregó el permiso para modificar eventos de Google Calendar
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets", 
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/calendar.events"
+    ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    return cliente.open("Base_Datos_Kine")
+    return cliente, creds
 
-try: doc = conectar_bd()
+try: 
+    doc, credenciales_gcp = conectar_bd()
 except Exception as e:
     st.error(f"Error conectando a la base de datos: {e}")
     st.stop()
@@ -72,7 +72,6 @@ def obtener_hoja(nombre):
     try: return doc.worksheet(nombre)
     except gspread.exceptions.WorksheetNotFound: return doc.add_worksheet(title=nombre, rows="1000", cols="20")
 
-# 🛡️ SISTEMA ANTI-FANTASMAS
 @st.cache_data(ttl=60)
 def cargar_tabla(nombre_hoja):
     try:
@@ -81,7 +80,7 @@ def cargar_tabla(nombre_hoja):
         return pd.DataFrame(datos) if datos else pd.DataFrame()
     except Exception as e:
         st.cache_data.clear() 
-        st.error(f"⚠️ Google Sheets bloqueó la lectura por un segundo. Por seguridad, la app se pausó para no mostrarte datos vacíos. Presiona la tecla 'F5' o recarga la página de tu navegador.")
+        st.error(f"⚠️ Google Sheets bloqueó la lectura por un segundo. Por seguridad, la app se pausó. Presiona F5.")
         st.stop() 
 
 def guardar_tabla(nombre_hoja, df):
@@ -256,15 +255,12 @@ else:
             except (ValueError, TypeError): mapa[nombre] = 0.0
         return mapa
 
-    def construir_link_whatsapp(telefono, nombre_paciente, fecha_visual_str, hora_str):
+    def construir_link_whatsapp(telefono, fecha_visual_str, hora_str):
         if not telefono or str(telefono).strip() == "": return ""
         solo_digitos = "".join(ch for ch in str(telefono) if ch.isdigit())
         if solo_digitos == "": return ""
         if not solo_digitos.startswith("56"): solo_digitos = "56" + solo_digitos.lstrip("0")
-        
-        # --- NUEVO MENSAJE NEUTRO ---
         mensaje = f"Hola, ¿qué tal? Quería confirmar la sesión agendada para el {fecha_visual_str} a las {hora_str} hrs. Cualquier cosa me avisas 🙂"
-        
         texto_codificado = urllib.parse.quote(mensaje)
         return f"https://wa.me/{solo_digitos}?text={texto_codificado}"
 
@@ -303,7 +299,7 @@ else:
         contador = len(df_hist[df_hist['FechaHora'] <= fecha_hora_actual])
         return str(contador if contador > 0 else 1)
 
-    # --- CARGA Y PROTECCIÓN DE DATOS DEL DÍA ---
+    # --- CARGA DE DATOS ---
     df_clinica = cargar_datos_clinica(fecha_str)
     df_personal = cargar_datos_personal(fecha_str)
 
@@ -411,7 +407,7 @@ else:
                 if es_numero_auto: df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
             if hay_paciente:
                 telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
-                df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, paciente, fecha_visual, hora_str)
+                df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, fecha_visual, hora_str)
             else: df_clinica.at[index, 'Recordatorio'] = ""
         else:
             df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""; df_clinica.at[index, 'Alarma'] = ""
@@ -444,14 +440,11 @@ else:
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1: 
             st.header(f"📅 Agenda Clínica - {fecha_visual}")
-            
-            # --- 🚀 NUEVO GPS VISUAL DEL DÍA (LÍNEA DE TIEMPO) ---
             if es_hoy:
                 try:
                     ahora_chile = pd.Timestamp.now('America/Santiago')
                     inicio_dia = ahora_chile.replace(hour=8, minute=0, second=0, microsecond=0)
                     fin_dia = ahora_chile.replace(hour=20, minute=30, second=0, microsecond=0)
-                    
                     if inicio_dia <= ahora_chile <= fin_dia:
                         total_minutos = (fin_dia - inicio_dia).total_seconds() / 60
                         minutos_transcurridos = (ahora_chile - inicio_dia).total_seconds() / 60
@@ -654,8 +647,76 @@ else:
                                     else: st.error("Selecciona una cita válida de la lista.")
                         else: st.warning("No se encontraron sesiones.")
 
-        with st.expander("📍 Viajes y Alarmas"):
-            st.markdown("⚠️ *El botón automático usa mapas gratuitos que a veces no encuentran las calles. Lo mejor es que tú escribas los minutos a mano en la tabla y presiones 'Guardar Cambios'.*")
+        # --- NUEVA FUNCIÓN: SINCRONIZACIÓN DE GOOGLE CALENDAR ---
+        with st.expander("📲 Enviar a Google Calendar (Pop-ups automáticos)"):
+            st.markdown("""
+            Asegúrate de haber seguido los pasos previos:
+            1. Agregar `google-api-python-client` a tu *requirements.txt*
+            2. Dar permisos a tu cuenta de Google Cloud
+            3. Compartir tu Google Calendar con el correo del robot.
+            """)
+            correo_cal = st.text_input("Tu correo de Google Calendar (al que compartiste el acceso):", value="")
+            
+            if st.button("🚀 Sincronizar este día", type="primary", use_container_width=True):
+                if correo_cal.strip() == "":
+                    st.error("Debes ingresar tu correo.")
+                else:
+                    try:
+                        from googleapiclient.discovery import build
+                        with st.spinner("Creando eventos en tu calendario..."):
+                            service = build('calendar', 'v3', credentials=credenciales_gcp)
+                            eventos_creados = 0
+                            
+                            for idx, row in df_clinica.iterrows():
+                                pac = str(row['Paciente']).strip()
+                                if pac != "" and pac.upper() != "ALMUERZO":
+                                    hora = str(row['Hora']).replace("🔴", "").strip()
+                                    motivo = str(row['Detalle / Motivo']).strip()
+                                    direccion = str(row['Dirección']).strip()
+                                    min_viaje = int(row['Minutos de Viaje'])
+                                    
+                                    h_ini = datetime.strptime(f"{fecha_str} {hora}", "%Y-%m-%d %H:%M")
+                                    h_fin = h_ini + timedelta(minutes=45)
+                                    
+                                    # El Pop Up te avisará 30 min + tiempo de viaje antes.
+                                    minutos_aviso = 30 + min_viaje
+                                    
+                                    evento = {
+                                        'summary': f'🩺 Kine: {pac}',
+                                        'location': direccion,
+                                        'description': f'Motivo: {motivo}',
+                                        'start': {
+                                            'dateTime': h_ini.strftime('%Y-%m-%dT%H:%M:%S'),
+                                            'timeZone': 'America/Santiago',
+                                        },
+                                        'end': {
+                                            'dateTime': h_fin.strftime('%Y-%m-%dT%H:%M:%S'),
+                                            'timeZone': 'America/Santiago',
+                                        },
+                                        'reminders': {
+                                            'useDefault': False,
+                                            'overrides': [
+                                                {'method': 'popup', 'minutes': minutos_aviso},
+                                            ],
+                                        },
+                                    }
+                                    # Empujar el evento al calendario
+                                    service.events().insert(calendarId=correo_cal, body=evento).execute()
+                                    eventos_creados += 1
+                            
+                            if eventos_creados > 0:
+                                st.success(f"✅ ¡Éxito! Se crearon {eventos_creados} eventos en tu Google Calendar para hoy.")
+                                st.warning("⚠️ Nota: Presiona este botón solo una vez por día para no duplicar los eventos.")
+                            else:
+                                st.info("No hay pacientes agendados para sincronizar hoy.")
+                    
+                    except ImportError:
+                        st.error("🚨 Falta instalar la librería. Ve a tu GitHub y agrega `google-api-python-client` en tu archivo `requirements.txt`.")
+                    except Exception as e:
+                        st.error(f"🚨 Error de permisos con Google: Revisa que hayas compartido tu calendario con el robot. Detalle: {e}")
+
+        with st.expander("📍 Viajes y Tiempos"):
+            st.markdown("⚠️ *Tú escribes los minutos a mano en la tabla y al guardar, la app calcula la Hora de Salida.*")
             ubicacion_gps = streamlit_geolocation()
             direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
             if st.button("⚡ Calcular Tiempos Automáticos de Hoy"):
@@ -686,7 +747,7 @@ else:
                 "Minutos de Viaje": st.column_config.NumberColumn("Min. Viaje", min_value=0, step=1),
                 "Hora de Salida": st.column_config.TextColumn("Salida", disabled=True),
                 "Ruta Maps": st.column_config.LinkColumn("🗺️ Mapa", disabled=True, display_text="Ver Mapa"),
-                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Crear Alarma"),
+                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Link Manual"),
                 "Recordatorio": st.column_config.LinkColumn("📲 WhatsApp", disabled=True, display_text="Enviar"),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
