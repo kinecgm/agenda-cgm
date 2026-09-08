@@ -835,15 +835,45 @@ else:
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
-                # --- NUEVO: TABLA DE HISTORIAL DE SESIONES ---
-                st.markdown("### 🗓️ Historial de Sesiones en Calendario")
+                # --- NUEVO: TABLA EDITABLE DE HISTORIAL DE PAGOS ---
+                st.markdown("### 🗓️ Historial de Sesiones y Pagos")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
                     df_filtro_pac = df_full_clinica_hist[(df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (~df_full_clinica_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
                     if not df_filtro_pac.empty:
-                        # Seleccionar columnas útiles y ordenar por fecha descendente
-                        df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False])
-                        st.dataframe(df_mostrar, use_container_width=True, hide_index=True)
+                        df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
+                        
+                        st.markdown("💡 *Edita directamente la columna 'Pago' y presiona el botón para guardar todos los cambios.*")
+                        
+                        df_editado_pagos = st.data_editor(
+                            df_mostrar,
+                            use_container_width=True,
+                            hide_index=True,
+                            key=f"editor_pagos_{paciente_seleccionado}",
+                            column_config={
+                                "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
+                                "Hora": st.column_config.TextColumn("Hora", disabled=True),
+                                "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
+                                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
+                            }
+                        )
+                        
+                        if st.button("💾 Guardar Cambios de Pagos", type="primary", use_container_width=True):
+                            with st.spinner("Actualizando historial en la base de datos..."):
+                                for index, row in df_editado_pagos.iterrows():
+                                    hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                                    mask = (df_full_clinica_hist['Fecha'] == row['Fecha']) & \
+                                           (df_full_clinica_hist['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper())
+                                    
+                                    if not df_full_clinica_hist[mask].empty:
+                                        idx_to_update = df_full_clinica_hist[mask].index[0]
+                                        df_full_clinica_hist.at[idx_to_update, 'Pago'] = row['Pago']
+                                        
+                                guardar_tabla("Clinica", df_full_clinica_hist)
+                                st.success("✅ ¡Pagos actualizados! Los contadores de arriba se actualizarán enseguida.")
+                                time.sleep(1)
+                                st.rerun()
                     else:
                         st.info("No hay sesiones registradas en el calendario para este paciente.")
                 
