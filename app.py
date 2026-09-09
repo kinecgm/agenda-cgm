@@ -255,6 +255,16 @@ else:
             except (ValueError, TypeError): mapa[nombre] = 0.0
         return mapa
 
+    # NUEVA FUNCIÓN PARA EXTRAER EL VALOR DE LA PAUTA ONLINE
+    def obtener_valor_pauta_por_paciente():
+        df_fichas = cargar_tabla("Fichas")
+        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Valor Pauta' not in df_fichas.columns: return {}
+        mapa = {}
+        for nombre, valor in zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Valor Pauta']):
+            try: mapa[nombre] = float(str(valor).replace(".", "").replace(",", "").strip())
+            except (ValueError, TypeError): mapa[nombre] = 0.0
+        return mapa
+
     def construir_link_whatsapp(telefono, fecha_visual_str, hora_str):
         if not telefono or str(telefono).strip() == "": return ""
         solo_digitos = "".join(ch for ch in str(telefono) if ch.isdigit())
@@ -273,9 +283,19 @@ else:
         df_mes = df_mes[~df_mes['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
         df_mes = df_mes[(df_mes['Paciente'].astype(str).str.strip() != "") & (df_mes['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
         if df_mes.empty: return resultado
+        
         mapa_valores = obtener_valor_por_paciente()
+        mapa_pautas = obtener_valor_pauta_por_paciente()
         df_mes['Paciente_norm'] = df_mes['Paciente'].astype(str).str.strip().str.upper()
-        df_mes['Valor'] = df_mes['Paciente_norm'].map(mapa_valores).fillna(0.0)
+        
+        # Asignar el valor correcto dependiendo si es Sesión normal o Pauta Online
+        def asignar_valor(row):
+            if str(row['Detalle / Motivo']).strip() == "Pauta Online 💻":
+                return mapa_pautas.get(row['Paciente_norm'], 0.0)
+            return mapa_valores.get(row['Paciente_norm'], 0.0)
+            
+        df_mes['Valor'] = df_mes.apply(asignar_valor, axis=1)
+        
         resultado["total_sesiones"] = len(df_mes)
         resultado["pagadas"] = len(df_mes[df_mes['Pago'] == "Pagada ✅"])
         resultado["adeudadas"] = len(df_mes[df_mes['Pago'] == "No pagada ❌"])
@@ -292,7 +312,8 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return "1"
-        df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))].copy()
+        # Las pautas online NO suman al número de sesión (ej: "Sesión 3")
+        df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️", "Pauta Online 💻"]))].copy()
         if df_hist.empty: return "1"
         df_hist['FechaHora'] = pd.to_datetime(df_hist['Fecha'] + ' ' + df_hist['Hora'])
         fecha_hora_actual = pd.to_datetime(f"{fecha_actual} {hora_actual}")
@@ -360,7 +381,7 @@ else:
         actividad_personal = mapa_personal.get(hora_str, "") 
         es_tramite = (detalle_actual == "Personal / Trámite 🛑")
         es_gimnasio = (detalle_actual == "Gimnasio 🏋️")
-        es_cita_clinica = (detalle_actual in ["Rehabilitación", "Entrenamiento", "Preventivo"])
+        es_cita_clinica = (detalle_actual in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
         es_almuerzo = (paciente.upper() == "ALMUERZO")
         hay_paciente = (paciente != "" and not es_almuerzo)
         
@@ -404,7 +425,13 @@ else:
                 else:
                     try: float(sesion_actual); es_numero_auto = True
                     except ValueError: es_numero_auto = False
-                if es_numero_auto: df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
+                
+                if es_numero_auto: 
+                    if detalle_actual == "Pauta Online 💻":
+                        df_clinica.at[index, 'N° Sesión'] = "Pauta"
+                    else:
+                        df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
+                        
             if hay_paciente:
                 telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
                 df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, fecha_visual, hora_str)
@@ -428,7 +455,7 @@ else:
                 if (detalle_ant == "Personal / Trámite 🛑") or (detalle_ant == "Gimnasio 🏋️"):
                     df_clinica.at[index, 'Estado'] = f"Bloqueado ({paciente_ant if paciente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
                     continue
-                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
+                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
                     df_clinica.at[index, 'Estado'] = f"En sesión ({paciente_ant if paciente_ant != '' else 'Paciente'}) ⏳"
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
@@ -486,7 +513,7 @@ else:
                     col_e1, col_e2, col_e3 = st.columns(3)
                     with col_e1:
                         pac_ex = st.selectbox("1. Paciente Existente:", ["-- Selecciona --"] + lista_pacs)
-                        mot_ex = st.selectbox("Motivo de sesión:", ["Rehabilitación", "Entrenamiento", "Preventivo"], key="mot_ex")
+                        mot_ex = st.selectbox("Motivo de sesión:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"], key="mot_ex")
                     with col_e2:
                         hora_ex = st.selectbox(f"2. Hora (para este día):", horas_30_min, key="hora_ex")
                     with col_e3:
@@ -514,7 +541,7 @@ else:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
                     m_paciente = st.text_input("Paciente:")
-                    m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo"])
+                    m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
                     m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
                 with col_m2:
                     m_fecha_inicio = st.date_input("Inicio:")
@@ -739,7 +766,7 @@ else:
             column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Alarma", "Recordatorio", "Estado", "N° Sesión", "Pago"),
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
-                "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
+                "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
                 "Dirección": st.column_config.TextColumn("Dirección"),
                 "Minutos de Viaje": st.column_config.NumberColumn("Min. Viaje", min_value=0, step=1),
                 "Hora de Salida": st.column_config.TextColumn("Salida", disabled=True),
@@ -821,9 +848,10 @@ else:
                     df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección'])
                 if 'Valor Sesión' not in df_fichas.columns: df_fichas['Valor Sesión'] = "" 
                 if 'Dirección' not in df_fichas.columns: df_fichas['Dirección'] = "" 
+                if 'Valor Pauta' not in df_fichas.columns: df_fichas['Valor Pauta'] = "" 
                 
                 if paciente_seleccionado not in df_fichas['Paciente'].values:
-                    nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""]})
+                    nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""], 'Valor Pauta': [""]})
                     df_fichas = pd.concat([df_fichas, nueva_fila], ignore_index=True)
                     guardar_tabla("Fichas", df_fichas)
                     
@@ -831,12 +859,12 @@ else:
                 tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(paciente_seleccionado)
                 
                 col_met1, col_met2, col_met3 = st.columns(3)
-                col_met1.metric("Sesiones Totales", tot_sesiones)
+                col_met1.metric("Atenciones Totales", tot_sesiones)
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
                 # --- NUEVO: TABLA EDITABLE DE HISTORIAL DE PAGOS ---
-                st.markdown("### 🗓️ Historial de Sesiones y Pagos")
+                st.markdown("### 🗓️ Historial de Sesiones y Pautas")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
                     df_filtro_pac = df_full_clinica_hist[(df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (~df_full_clinica_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
@@ -875,7 +903,7 @@ else:
                                 time.sleep(1)
                                 st.rerun()
                     else:
-                        st.info("No hay sesiones registradas en el calendario para este paciente.")
+                        st.info("No hay atenciones registradas en el calendario para este paciente.")
                 
                 st.markdown("---")
                 
@@ -888,6 +916,7 @@ else:
                     with col_f2:
                         nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']).replace('nan', ''))
                         nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
+                        nuevo_valor_pauta = st.text_input("💻 Valor Pauta Online (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Pauta']).replace('nan', ''))
                         st.markdown("<br>", unsafe_allow_html=True) 
                         
                     nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100)
@@ -909,6 +938,7 @@ else:
                                 
                         df_fichas.at[idx_ficha, 'Notas Clínicas'] = texto_final
                         df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
+                        df_fichas.at[idx_ficha, 'Valor Pauta'] = nuevo_valor_pauta
                         guardar_tabla("Fichas", df_fichas)
                         st.success("¡Ficha actualizada!")
                         time.sleep(1)
@@ -919,6 +949,6 @@ else:
         mes_dashboard = st.date_input("Mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
         stats = calcular_dashboard_mensual(mes_dashboard)
         col_d1, col_d2, col_d3 = st.columns(3)
-        col_d1.metric("Sesiones totales", stats["total_sesiones"])
+        col_d1.metric("Atenciones totales", stats["total_sesiones"])
         col_d2.metric("💰 Ingresos", f"${stats['ingresos']:,.0f}".replace(",", "."))
         col_d3.metric("⏳ Por cobrar", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
