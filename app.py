@@ -218,12 +218,20 @@ else:
         return 0
 
     def obtener_lista_pacientes():
-        df_completo = cargar_tabla("Clinica")
-        if df_completo.empty or 'Paciente' not in df_completo.columns: return []
+        # AHORA BUSCA PACIENTES EN CALENDARIO Y EN FICHAS (Para poder crear online automático)
         pacientes = set()
-        for p in df_completo['Paciente'].dropna().unique():
-            p_str = str(p).strip()
-            if p_str != "" and p_str.upper() != "ALMUERZO": pacientes.add(p_str.title()) 
+        df_clinica = cargar_tabla("Clinica")
+        if not df_clinica.empty and 'Paciente' in df_clinica.columns:
+            for p in df_clinica['Paciente'].dropna().unique():
+                p_str = str(p).strip()
+                if p_str != "" and p_str.upper() != "ALMUERZO": pacientes.add(p_str.title()) 
+        
+        df_fichas = cargar_tabla("Fichas")
+        if not df_fichas.empty and 'Paciente' in df_fichas.columns:
+            for p in df_fichas['Paciente'].dropna().unique():
+                p_str = str(p).strip()
+                if p_str != "": pacientes.add(p_str.title()) 
+                
         return sorted(list(pacientes))
 
     def calcular_estadisticas_globales(nombre_paciente):
@@ -529,7 +537,7 @@ else:
             with tab_ex:
                 lista_pacs = obtener_lista_pacientes()
                 if not lista_pacs:
-                    st.info("Primero agrega un paciente manualmente en la tabla inferior.")
+                    st.info("Primero agrega un paciente manualmente en la tabla inferior o en Fichas Clínicas.")
                 else:
                     col_e1, col_e2, col_e3 = st.columns(3)
                     with col_e1:
@@ -860,6 +868,36 @@ else:
 
     with tab3:
         st.header("📁 Fichas Clínicas")
+        
+        # --- NUEVO: CREAR PACIENTE DIRECTAMENTE ---
+        with st.expander("➕ Crear Nuevo Paciente (Ideal para 100% Online)", expanded=False):
+            st.markdown("Crea la ficha de un paciente sin tener que agendarlo en el calendario primero.")
+            col_n1, col_n2 = st.columns([3, 1])
+            with col_n1:
+                nuevo_nombre_paciente = st.text_input("Nombre completo del nuevo paciente:", key="input_nuevo_paciente")
+            with col_n2:
+                st.markdown("<br>", unsafe_allow_html=True)
+                if st.button("✨ Crear Ficha", use_container_width=True, type="primary"):
+                    if nuevo_nombre_paciente.strip() == "":
+                        st.error("Escribe un nombre.")
+                    else:
+                        nombre_limpio = nuevo_nombre_paciente.strip().title()
+                        df_fichas_temp = cargar_tabla("Fichas")
+                        if df_fichas_temp.empty or 'Paciente' not in df_fichas_temp.columns:
+                            df_fichas_temp = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta'])
+                        
+                        if 'Valor Pauta' not in df_fichas_temp.columns: df_fichas_temp['Valor Pauta'] = ""
+                        
+                        if nombre_limpio.upper() not in df_fichas_temp['Paciente'].astype(str).str.upper().values:
+                            nueva_fila = pd.DataFrame({'Paciente': [nombre_limpio], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""], 'Valor Pauta': [""]})
+                            df_fichas_temp = pd.concat([df_fichas_temp, nueva_fila], ignore_index=True)
+                            guardar_tabla("Fichas", df_fichas_temp)
+                            st.success(f"✅ ¡{nombre_limpio} agregado al sistema!")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Este paciente ya existe.")
+        
         lista_pacientes = obtener_lista_pacientes()
         if not lista_pacientes: st.info("Agrega un paciente primero.")
         else:
@@ -1034,7 +1072,6 @@ else:
     with tab4:
         st.header("📊 Dashboard Financiero")
         
-        # --- NUEVO: SELECTORES SIMPLES DE MES Y AÑO ---
         meses_nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
         año_actual = date.today().year
         
@@ -1069,7 +1106,6 @@ else:
 
         st.markdown("---")
         
-        # --- NUEVO: RESUMEN ANUAL AUTOMÁTICO ---
         st.markdown(f"### 📈 Resumen Anual {año_seleccionado}")
         
         datos_anuales = []
@@ -1087,7 +1123,6 @@ else:
         if datos_anuales:
             df_anual = pd.DataFrame(datos_anuales)
             
-            # Formateamos visualmente para que se vea como moneda
             df_anual_visual = df_anual.copy()
             for col in ["Ingresos Pagados", "Deuda Pendiente", "Total Mensual"]:
                 df_anual_visual[col] = df_anual_visual[col].apply(lambda x: f"${x:,.0f}".replace(",", "."))
