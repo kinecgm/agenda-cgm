@@ -344,8 +344,8 @@ else:
                 h_obj = datetime.strptime(h_str, "%H:%M").time()
                 h_next = datetime.strptime(horas_30_min[idx+1], "%H:%M").time() if idx < len(horas_30_min)-1 else datetime.strptime("20:30", "%H:%M").time()
                 if h_obj <= hora_actual < h_next:
-                    df_clinica.at[idx, 'Hora'] = f"🔴 {h_str}"
-                    df_personal.at[idx, 'Hora'] = f"🔴 {h_str}"
+                    if idx < len(df_clinica): df_clinica.at[idx, 'Hora'] = f"🔴 {h_str}"
+                    if idx < len(df_personal): df_personal.at[idx, 'Hora'] = f"🔴 {h_str}"
                     break
         except: pass
 
@@ -365,17 +365,26 @@ else:
     df_personal['Categoría'] = df_personal['Categoría'].fillna("-").astype(str)
     df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
-    for index in df_clinica.index:
-        pac_clinica = str(df_clinica.at[index, 'Paciente']).strip()
-        act_personal = str(df_personal.at[index, 'Actividad']).strip()
-        if pac_clinica != "" and pac_clinica.upper() != "ALMUERZO":
+    # MAPEO SEGURO POR HORA (EVITA KEYERROR)
+    mapa_pacientes_clinica = {}
+    for _, row_c in df_clinica.iterrows():
+        h_limp = str(row_c['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+        p_val = str(row_c['Paciente']).strip()
+        if p_val != "" and p_val.upper() != "ALMUERZO":
+            mapa_pacientes_clinica[h_limp] = p_val
+
+    for idx_p in df_personal.index:
+        h_pers = str(df_personal.at[idx_p, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+        act_personal = str(df_personal.at[idx_p, 'Actividad']).strip()
+        if h_pers in mapa_pacientes_clinica:
+            pac_clinica = mapa_pacientes_clinica[h_pers]
             if not act_personal.startswith("🩺 Atendiendo"):
-                df_personal.at[index, 'Actividad'] = f"🩺 Atendiendo: {pac_clinica}"
-                df_personal.at[index, 'Categoría'] = "Clínica"
+                df_personal.at[idx_p, 'Actividad'] = f"🩺 Atendiendo: {pac_clinica}"
+                df_personal.at[idx_p, 'Categoría'] = "Clínica"
         else:
             if act_personal.startswith("🩺 Atendiendo"):
-                df_personal.at[index, 'Actividad'] = ""
-                df_personal.at[index, 'Categoría'] = "-"
+                df_personal.at[idx_p, 'Actividad'] = ""
+                df_personal.at[idx_p, 'Categoría'] = "-"
 
     mapa_personal = obtener_actividad_por_hora(df_personal) 
     mapa_telefonos = obtener_telefono_por_paciente()
@@ -403,7 +412,7 @@ else:
                 df_clinica.at[index, 'Dirección'] = direccion
 
         if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
-            if direccion != "":
+            if direccion != "" and direccion != "-":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
                 df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
             else: df_clinica.at[index, 'Ruta Maps'] = ""
@@ -443,7 +452,7 @@ else:
                     else:
                         df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
                         
-            if hay_paciente:
+            if hay_paciente and detalle_actual != "Pauta Online 💻":
                 telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
                 df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, fecha_visual, hora_str)
             else: df_clinica.at[index, 'Recordatorio'] = ""
@@ -457,6 +466,7 @@ else:
         elif actividad_personal != "": df_clinica.at[index, 'Estado'] = f"Bloqueado ({actividad_personal}) 🛑"
         elif es_tramite: df_clinica.at[index, 'Estado'] = "Bloqueado 🛑"
         elif es_gimnasio: df_clinica.at[index, 'Estado'] = "Gimnasio 🏋️"
+        elif detalle_actual == "Pauta Online 💻": df_clinica.at[index, 'Estado'] = "Entregada 📩"
         elif es_cita_clinica or hay_paciente: df_clinica.at[index, 'Estado'] = "Agendado 🔒"
         elif es_almuerzo: df_clinica.at[index, 'Estado'] = "-"
         else:
@@ -466,7 +476,7 @@ else:
                 if (detalle_ant == "Personal / Trámite 🛑") or (detalle_ant == "Gimnasio 🏋️"):
                     df_clinica.at[index, 'Estado'] = f"Bloqueado ({paciente_ant if paciente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
                     continue
-                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
+                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
                     df_clinica.at[index, 'Estado'] = f"En sesión ({paciente_ant if paciente_ant != '' else 'Paciente'}) ⏳"
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
@@ -708,7 +718,6 @@ else:
                                 pac = str(row['Paciente']).strip()
                                 motivo = str(row['Detalle / Motivo']).strip()
                                 
-                                # Evitamos sincronizar las pautas online para que no te suene una alarma a medianoche
                                 if pac != "" and pac.upper() != "ALMUERZO" and motivo != "Pauta Online 💻":
                                     hora = str(row['Hora']).replace("🔴", "").strip()
                                     direccion = str(row['Dirección']).strip()
@@ -876,10 +885,10 @@ else:
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
-                # --- NUEVO: BOTÓN PARA VENDER PAUTAS AUTOMÁTICAMENTE ---
+                # --- BOTÓN PARA REGISTRAR PAUTA ONLINE ---
                 st.markdown("---")
                 with st.expander("💻 Vender Nueva Pauta Online"):
-                    st.markdown("Usa este botón para registrar una pauta vendida. Se añadirá al final del día seleccionado como 'No pagada' para cobrarla a fin de mes.")
+                    st.markdown("Registra una pauta vendida. Se incorporará como 'No pagada' al final del día seleccionado para su control y cobro.")
                     
                     mapa_pau_t3 = obtener_valor_pauta_por_paciente()
                     valor_actual_pauta = mapa_pau_t3.get(paciente_seleccionado.upper(), 0.0)
@@ -898,7 +907,6 @@ else:
                                 fecha_pauta_str = fecha_nueva_pauta.strftime("%Y-%m-%d")
                                 df_dia_pauta = cargar_datos_clinica(fecha_pauta_str)
                                 
-                                # Generar hora "23:XX" para no chocar con agenda normal
                                 minuto_base = 0
                                 while f"23:{minuto_base:02d}" in df_dia_pauta['Hora'].values:
                                     minuto_base += 1
@@ -946,7 +954,7 @@ else:
                             
                         df_mostrar['Costo Calculado'] = df_mostrar.apply(calcular_costo_visual, axis=1)
                         
-                        st.markdown("💡 *Edita la columna 'Pago' y guarda. La columna 'Costo Calculado' te muestra el valor exacto asignado a esa atención (Sesión normal vs Pauta).*")
+                        st.markdown("💡 *Edita la columna 'Pago' y guarda para actualizar el estado contable.*")
                         
                         cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Costo Calculado', 'Pago']
                         df_mostrar = df_mostrar[cols_order]
@@ -978,7 +986,7 @@ else:
                                         df_full_clinica_hist.at[idx_to_update, 'Pago'] = row['Pago']
                                         
                                 guardar_tabla("Clinica", df_full_clinica_hist)
-                                st.success("✅ ¡Pagos actualizados! Los contadores de arriba se actualizarán enseguida.")
+                                st.success("✅ ¡Pagos actualizados!")
                                 time.sleep(1)
                                 st.rerun()
                     else:
@@ -1028,7 +1036,6 @@ else:
         mes_dashboard = st.date_input("Mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
         stats = calcular_dashboard_mensual(mes_dashboard)
         
-        # Totales Generales
         col_d1, col_d2, col_d3 = st.columns(3)
         col_d1.metric("Atenciones totales", stats["total_sesiones"])
         col_d2.metric("💰 Ingresos Totales", f"${stats['ingresos']:,.0f}".replace(",", "."))
@@ -1036,7 +1043,6 @@ else:
         
         st.markdown("---")
         
-        # NUEVO: Desglose de contabilidad
         st.markdown("#### 🔍 Desglose de Contabilidad")
         col_des1, col_des2 = st.columns(2)
         with col_des1:
