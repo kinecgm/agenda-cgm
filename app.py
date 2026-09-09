@@ -218,7 +218,6 @@ else:
         return 0
 
     def obtener_lista_pacientes():
-        # AHORA BUSCA PACIENTES EN CALENDARIO Y EN FICHAS (Para poder crear online automático)
         pacientes = set()
         df_clinica = cargar_tabla("Clinica")
         if not df_clinica.empty and 'Paciente' in df_clinica.columns:
@@ -373,7 +372,7 @@ else:
     df_personal['Categoría'] = df_personal['Categoría'].fillna("-").astype(str)
     df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
-    # MAPEO SEGURO POR HORA (EVITA KEYERROR)
+    # MAPEO SEGURO POR HORA
     mapa_pacientes_clinica = {}
     for _, row_c in df_clinica.iterrows():
         h_limp = str(row_c['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
@@ -1103,6 +1102,41 @@ else:
         with col_des2:
             st.warning(f"**Deuda por Sesiones Clínicas:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
             st.warning(f"**Deuda por Pautas Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
+
+        st.markdown("---")
+        
+        # --- NUEVO: DETALLE DE ATENCIONES DEL MES ---
+        st.markdown(f"### 📋 Detalle de Atenciones - {mes_seleccionado} {año_seleccionado}")
+        df_completo_dash = cargar_tabla("Clinica")
+        if not df_completo_dash.empty and 'Fecha' in df_completo_dash.columns:
+            prefijo_mes_sel = mes_dashboard.strftime("%Y-%m")
+            df_mes_det = df_completo_dash[df_completo_dash['Fecha'].astype(str).str.startswith(prefijo_mes_sel)].copy()
+            df_mes_det = df_mes_det[~df_mes_det['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
+            df_mes_det = df_mes_det[(df_mes_det['Paciente'].astype(str).str.strip() != "") & (df_mes_det['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+            
+            if not df_mes_det.empty:
+                mapa_val_dash = obtener_valor_por_paciente()
+                mapa_pau_dash = obtener_valor_pauta_por_paciente()
+                df_mes_det['Paciente_norm'] = df_mes_det['Paciente'].astype(str).str.strip().str.upper()
+                
+                # Limpiar los puntos rojos visualmente en la tabla
+                df_mes_det['Hora'] = df_mes_det['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+                
+                def asignar_valor_str(row):
+                    if str(row['Detalle / Motivo']).strip() == "Pauta Online 💻":
+                        val = mapa_pau_dash.get(row['Paciente_norm'], 0.0)
+                    else:
+                        val = mapa_val_dash.get(row['Paciente_norm'], 0.0)
+                    return f"${val:,.0f}".replace(",", ".")
+                
+                df_mes_det['Costo'] = df_mes_det.apply(asignar_valor_str, axis=1)
+                
+                df_mostrar_dash = df_mes_det[['Fecha', 'Hora', 'Paciente', 'Detalle / Motivo', 'Costo', 'Pago']].sort_values(by=['Fecha', 'Hora'])
+                st.dataframe(df_mostrar_dash, use_container_width=True, hide_index=True)
+            else:
+                st.info(f"No hay atenciones registradas para {mes_seleccionado} {año_seleccionado}.")
+        else:
+            st.info("No hay datos en la clínica aún.")
 
         st.markdown("---")
         
