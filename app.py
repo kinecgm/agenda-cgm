@@ -476,7 +476,7 @@ else:
                 if (detalle_ant == "Personal / Trámite 🛑") or (detalle_ant == "Gimnasio 🏋️"):
                     df_clinica.at[index, 'Estado'] = f"Bloqueado ({paciente_ant if paciente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
                     continue
-                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
+                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
                     df_clinica.at[index, 'Estado'] = f"En sesión ({paciente_ant if paciente_ant != '' else 'Paciente'}) ⏳"
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
@@ -1032,14 +1032,29 @@ else:
                         st.rerun()
 
     with tab4:
-        st.header("📊 Dashboard General")
-        mes_dashboard = st.date_input("Mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
+        st.header("📊 Dashboard Financiero")
+        
+        # --- NUEVO: SELECTORES SIMPLES DE MES Y AÑO ---
+        meses_nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        año_actual = date.today().year
+        
+        st.markdown("### 📅 Seleccionar Periodo")
+        col_m, col_a = st.columns(2)
+        with col_m:
+            mes_seleccionado = st.selectbox("Mes:", meses_nombres, index=st.session_state.app_fecha_sel.month - 1)
+        with col_a:
+            año_seleccionado = st.selectbox("Año:", [año_actual - 1, año_actual, año_actual + 1, año_actual + 2], index=1)
+            
+        mes_num = meses_nombres.index(mes_seleccionado) + 1
+        mes_dashboard = date(año_seleccionado, mes_num, 1)
+        
         stats = calcular_dashboard_mensual(mes_dashboard)
         
+        st.markdown(f"### 📊 Resultados de {mes_seleccionado} {año_seleccionado}")
         col_d1, col_d2, col_d3 = st.columns(3)
         col_d1.metric("Atenciones totales", stats["total_sesiones"])
-        col_d2.metric("💰 Ingresos Totales", f"${stats['ingresos']:,.0f}".replace(",", "."))
-        col_d3.metric("⏳ Por cobrar Total", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
+        col_d2.metric("💰 Ingresos Pagados", f"${stats['ingresos']:,.0f}".replace(",", "."))
+        col_d3.metric("⏳ Deuda Pendiente", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
         
         st.markdown("---")
         
@@ -1051,3 +1066,32 @@ else:
         with col_des2:
             st.warning(f"**Deuda por Sesiones Clínicas:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
             st.warning(f"**Deuda por Pautas Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
+
+        st.markdown("---")
+        
+        # --- NUEVO: RESUMEN ANUAL AUTOMÁTICO ---
+        st.markdown(f"### 📈 Resumen Anual {año_seleccionado}")
+        
+        datos_anuales = []
+        for m in range(1, 13):
+            stats_m = calcular_dashboard_mensual(date(año_seleccionado, m, 1))
+            if stats_m["total_sesiones"] > 0 or stats_m["ingresos"] > 0 or stats_m["por_cobrar"] > 0:
+                datos_anuales.append({
+                    "Mes": meses_nombres[m-1],
+                    "Atenciones": stats_m["total_sesiones"],
+                    "Ingresos Pagados": stats_m['ingresos'],
+                    "Deuda Pendiente": stats_m['por_cobrar'],
+                    "Total Mensual": stats_m['ingresos'] + stats_m['por_cobrar']
+                })
+        
+        if datos_anuales:
+            df_anual = pd.DataFrame(datos_anuales)
+            
+            # Formateamos visualmente para que se vea como moneda
+            df_anual_visual = df_anual.copy()
+            for col in ["Ingresos Pagados", "Deuda Pendiente", "Total Mensual"]:
+                df_anual_visual[col] = df_anual_visual[col].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+                
+            st.dataframe(df_anual_visual, use_container_width=True, hide_index=True)
+        else:
+            st.info(f"No hay movimientos financieros registrados en el sistema durante {año_seleccionado}.")
