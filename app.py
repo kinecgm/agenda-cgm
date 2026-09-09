@@ -255,7 +255,6 @@ else:
             except (ValueError, TypeError): mapa[nombre] = 0.0
         return mapa
 
-    # NUEVA FUNCIÓN PARA EXTRAER EL VALOR DE LA PAUTA ONLINE
     def obtener_valor_pauta_por_paciente():
         df_fichas = cargar_tabla("Fichas")
         if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Valor Pauta' not in df_fichas.columns: return {}
@@ -276,7 +275,13 @@ else:
 
     def calcular_dashboard_mensual(fecha_referencia):
         df_completo = cargar_tabla("Clinica")
-        resultado = {"total_sesiones": 0, "pagadas": 0, "adeudadas": 0, "ingresos": 0.0, "por_cobrar": 0.0, "pacientes_con_deuda": 0, "pacientes_totales": 0}
+        resultado = {
+            "total_sesiones": 0, "pagadas": 0, "adeudadas": 0, 
+            "ingresos": 0.0, "por_cobrar": 0.0, 
+            "ingresos_sesiones": 0.0, "ingresos_pautas": 0.0,
+            "deuda_sesiones": 0.0, "deuda_pautas": 0.0,
+            "pacientes_con_deuda": 0, "pacientes_totales": 0
+        }
         if df_completo.empty or 'Fecha' not in df_completo.columns: return resultado
         prefijo_mes = fecha_referencia.strftime("%Y-%m")
         df_mes = df_completo[df_completo['Fecha'].astype(str).str.startswith(prefijo_mes)].copy()
@@ -295,12 +300,20 @@ else:
             return mapa_valores.get(row['Paciente_norm'], 0.0)
             
         df_mes['Valor'] = df_mes.apply(asignar_valor, axis=1)
+        df_mes['Es_Pauta'] = df_mes['Detalle / Motivo'].astype(str).str.strip() == "Pauta Online 💻"
         
         resultado["total_sesiones"] = len(df_mes)
         resultado["pagadas"] = len(df_mes[df_mes['Pago'] == "Pagada ✅"])
         resultado["adeudadas"] = len(df_mes[df_mes['Pago'] == "No pagada ❌"])
+        
         resultado["ingresos"] = df_mes[df_mes['Pago'] == "Pagada ✅"]['Valor'].sum()
+        resultado["ingresos_sesiones"] = df_mes[(df_mes['Pago'] == "Pagada ✅") & (~df_mes['Es_Pauta'])]['Valor'].sum()
+        resultado["ingresos_pautas"] = df_mes[(df_mes['Pago'] == "Pagada ✅") & (df_mes['Es_Pauta'])]['Valor'].sum()
+        
         resultado["por_cobrar"] = df_mes[df_mes['Pago'] == "No pagada ❌"]['Valor'].sum()
+        resultado["deuda_sesiones"] = df_mes[(df_mes['Pago'] == "No pagada ❌") & (~df_mes['Es_Pauta'])]['Valor'].sum()
+        resultado["deuda_pautas"] = df_mes[(df_mes['Pago'] == "No pagada ❌") & (df_mes['Es_Pauta'])]['Valor'].sum()
+        
         pacientes_totales = df_mes['Paciente_norm'].unique()
         pacientes_deuda = df_mes[df_mes['Pago'] == "No pagada ❌"]['Paciente_norm'].unique()
         resultado["pacientes_totales"] = len(pacientes_totales)
@@ -312,7 +325,6 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return "1"
-        # Las pautas online NO suman al número de sesión (ej: "Sesión 3")
         df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️", "Pauta Online 💻"]))].copy()
         if df_hist.empty: return "1"
         df_hist['FechaHora'] = pd.to_datetime(df_hist['Fecha'] + ' ' + df_hist['Hora'])
@@ -863,7 +875,7 @@ else:
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
-                # --- NUEVO: TABLA EDITABLE DE HISTORIAL DE PAGOS ---
+                # --- NUEVO: TABLA EDITABLE DE HISTORIAL CON COSTOS CALCULADOS ---
                 st.markdown("### 🗓️ Historial de Sesiones y Pautas")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
@@ -871,7 +883,26 @@ else:
                     if not df_filtro_pac.empty:
                         df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
                         
-                        st.markdown("💡 *Edita directamente la columna 'Pago' y presiona el botón para guardar todos los cambios.*")
+                        # Extraer los valores guardados en la ficha para mostrarlos en la tabla
+                        mapa_val_t3 = obtener_valor_por_paciente()
+                        mapa_pau_t3 = obtener_valor_pauta_por_paciente()
+                        
+                        def calcular_costo_visual(row):
+                            motivo = str(row['Detalle / Motivo']).strip()
+                            pac_norm = paciente_seleccionado.upper()
+                            if motivo == "Pauta Online 💻":
+                                val = mapa_pau_t3.get(pac_norm, 0.0)
+                            else:
+                                val = mapa_val_t3.get(pac_norm, 0.0)
+                            return f"${val:,.0f}".replace(",", ".")
+                            
+                        df_mostrar['Costo Calculado'] = df_mostrar.apply(calcular_costo_visual, axis=1)
+                        
+                        st.markdown("💡 *Edita la columna 'Pago' y guarda. La columna 'Costo Calculado' te muestra el valor exacto asignado a esa atención (Sesión normal vs Pauta).*")
+                        
+                        # Reordenar columnas para que el costo se vea bien
+                        cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Costo Calculado', 'Pago']
+                        df_mostrar = df_mostrar[cols_order]
                         
                         df_editado_pagos = st.data_editor(
                             df_mostrar,
@@ -882,6 +913,7 @@ else:
                                 "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
                                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
                                 "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
+                                "Costo Calculado": st.column_config.TextColumn("Valor ($)", disabled=True),
                                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
                             }
                         )
@@ -948,7 +980,21 @@ else:
         st.header("📊 Dashboard General")
         mes_dashboard = st.date_input("Mes de referencia:", value=st.session_state.app_fecha_sel, key="mes_dashboard")
         stats = calcular_dashboard_mensual(mes_dashboard)
+        
+        # Totales Generales
         col_d1, col_d2, col_d3 = st.columns(3)
         col_d1.metric("Atenciones totales", stats["total_sesiones"])
-        col_d2.metric("💰 Ingresos", f"${stats['ingresos']:,.0f}".replace(",", "."))
-        col_d3.metric("⏳ Por cobrar", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
+        col_d2.metric("💰 Ingresos Totales", f"${stats['ingresos']:,.0f}".replace(",", "."))
+        col_d3.metric("⏳ Por cobrar Total", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
+        
+        st.markdown("---")
+        
+        # NUEVO: Desglose de contabilidad
+        st.markdown("#### 🔍 Desglose de Contabilidad")
+        col_des1, col_des2 = st.columns(2)
+        with col_des1:
+            st.success(f"**Ingresos por Sesiones Clínicas:** ${stats['ingresos_sesiones']:,.0f}".replace(",", "."))
+            st.success(f"**Ingresos por Pautas Online:** ${stats['ingresos_pautas']:,.0f}".replace(",", "."))
+        with col_des2:
+            st.warning(f"**Deuda por Sesiones Clínicas:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
+            st.warning(f"**Deuda por Pautas Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
