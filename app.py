@@ -868,7 +868,6 @@ else:
     with tab3:
         st.header("📁 Fichas Clínicas")
         
-        # --- NUEVO: CREAR PACIENTE DIRECTAMENTE ---
         with st.expander("➕ Crear Nuevo Paciente (Ideal para 100% Online)", expanded=False):
             st.markdown("Crea la ficha de un paciente sin tener que agendarlo en el calendario primero.")
             col_n1, col_n2 = st.columns([3, 1])
@@ -922,7 +921,6 @@ else:
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
-                # --- BOTÓN PARA REGISTRAR PAUTA ONLINE ---
                 st.markdown("---")
                 with st.expander("💻 Vender Nueva Pauta Online"):
                     st.markdown("Registra una pauta vendida. Se incorporará como 'No pagada' al final del día seleccionado para su control y cobro.")
@@ -1105,7 +1103,7 @@ else:
 
         st.markdown("---")
         
-        # --- NUEVO: DETALLE DE ATENCIONES DEL MES ---
+        # --- NUEVO: TABLA EDITABLE INTELIGENTE EN EL DASHBOARD ---
         st.markdown(f"### 📋 Detalle de Atenciones - {mes_seleccionado} {año_seleccionado}")
         df_completo_dash = cargar_tabla("Clinica")
         if not df_completo_dash.empty and 'Fecha' in df_completo_dash.columns:
@@ -1119,7 +1117,6 @@ else:
                 mapa_pau_dash = obtener_valor_pauta_por_paciente()
                 df_mes_det['Paciente_norm'] = df_mes_det['Paciente'].astype(str).str.strip().str.upper()
                 
-                # Limpiar los puntos rojos visualmente en la tabla
                 df_mes_det['Hora'] = df_mes_det['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
                 
                 def asignar_valor_str(row):
@@ -1132,7 +1129,58 @@ else:
                 df_mes_det['Costo'] = df_mes_det.apply(asignar_valor_str, axis=1)
                 
                 df_mostrar_dash = df_mes_det[['Fecha', 'Hora', 'Paciente', 'Detalle / Motivo', 'Costo', 'Pago']].sort_values(by=['Fecha', 'Hora'])
-                st.dataframe(df_mostrar_dash, use_container_width=True, hide_index=True)
+                
+                st.markdown("💡 *Puedes editar el **Pago** y el **Costo**. Si cambias el costo aquí, el robot viajará automáticamente a la Ficha Clínica del paciente para guardar ese precio para siempre y arreglar los $0.*")
+                
+                df_editado_dash = st.data_editor(
+                    df_mostrar_dash,
+                    use_container_width=True,
+                    hide_index=True,
+                    key=f"editor_dash_{mes_seleccionado}_{año_seleccionado}",
+                    column_config={
+                        "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
+                        "Hora": st.column_config.TextColumn("Hora", disabled=True),
+                        "Paciente": st.column_config.TextColumn("Paciente", disabled=True),
+                        "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
+                        "Costo": st.column_config.TextColumn("Costo ($)"), 
+                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
+                    }
+                )
+                
+                if st.button("💾 Guardar Cambios del Mes", type="primary", use_container_width=True):
+                    with st.spinner("Guardando pagos y actualizando fichas en la base de datos..."):
+                        df_full_clinica_dash = cargar_tabla("Clinica")
+                        df_full_fichas_dash = cargar_tabla("Fichas")
+                        
+                        for index, row in df_editado_dash.iterrows():
+                            # 1. Actualizar Pago en la Clínica
+                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                            mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
+                                           (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
+                                           
+                            if not df_full_clinica_dash[mask_clinica].empty:
+                                idx_clin = df_full_clinica_dash[mask_clinica].index[0]
+                                df_full_clinica_dash.at[idx_clin, 'Pago'] = row['Pago']
+                            
+                            # 2. Actualizar Costo en la Ficha del Paciente (Para matar el $0)
+                            nuevo_costo = str(row['Costo']).replace("$", "").replace(".", "").replace(",", "").strip()
+                            pac_upper = str(row['Paciente']).strip().upper()
+                            es_pauta = (str(row['Detalle / Motivo']).strip() == "Pauta Online 💻")
+                            
+                            mask_ficha = (df_full_fichas_dash['Paciente'].astype(str).str.strip().str.upper() == pac_upper)
+                            if not df_full_fichas_dash[mask_ficha].empty:
+                                idx_fich = df_full_fichas_dash[mask_ficha].index[0]
+                                if es_pauta:
+                                    df_full_fichas_dash.at[idx_fich, 'Valor Pauta'] = nuevo_costo
+                                else:
+                                    df_full_fichas_dash.at[idx_fich, 'Valor Sesión'] = nuevo_costo
+
+                        guardar_tabla("Clinica", df_full_clinica_dash)
+                        guardar_tabla("Fichas", df_full_fichas_dash)
+                        st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
+                        time.sleep(1.5)
+                        st.rerun()
             else:
                 st.info(f"No hay atenciones registradas para {mes_seleccionado} {año_seleccionado}.")
         else:
