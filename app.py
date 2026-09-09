@@ -293,7 +293,6 @@ else:
         mapa_pautas = obtener_valor_pauta_por_paciente()
         df_mes['Paciente_norm'] = df_mes['Paciente'].astype(str).str.strip().str.upper()
         
-        # Asignar el valor correcto dependiendo si es Sesión normal o Pauta Online
         def asignar_valor(row):
             if str(row['Detalle / Motivo']).strip() == "Pauta Online 💻":
                 return mapa_pautas.get(row['Paciente_norm'], 0.0)
@@ -707,9 +706,11 @@ else:
                             
                             for idx, row in df_clinica.iterrows():
                                 pac = str(row['Paciente']).strip()
-                                if pac != "" and pac.upper() != "ALMUERZO":
+                                motivo = str(row['Detalle / Motivo']).strip()
+                                
+                                # Evitamos sincronizar las pautas online para que no te suene una alarma a medianoche
+                                if pac != "" and pac.upper() != "ALMUERZO" and motivo != "Pauta Online 💻":
                                     hora = str(row['Hora']).replace("🔴", "").strip()
-                                    motivo = str(row['Detalle / Motivo']).strip()
                                     direccion = str(row['Dirección']).strip()
                                     min_viaje = int(row['Minutos de Viaje'])
                                     
@@ -875,7 +876,56 @@ else:
                 col_met2.metric("Pagadas ✅", tot_pagadas)
                 col_met3.metric("Adeudadas ❌", tot_adeudadas)
 
-                # --- NUEVO: TABLA EDITABLE DE HISTORIAL CON COSTOS CALCULADOS ---
+                # --- NUEVO: BOTÓN PARA VENDER PAUTAS AUTOMÁTICAMENTE ---
+                st.markdown("---")
+                with st.expander("💻 Vender Nueva Pauta Online"):
+                    st.markdown("Usa este botón para registrar una pauta vendida. Se añadirá al final del día seleccionado como 'No pagada' para cobrarla a fin de mes.")
+                    
+                    mapa_pau_t3 = obtener_valor_pauta_por_paciente()
+                    valor_actual_pauta = mapa_pau_t3.get(paciente_seleccionado.upper(), 0.0)
+                    
+                    col_vp1, col_vp2, col_vp3 = st.columns(3)
+                    with col_vp1:
+                        fecha_nueva_pauta = st.date_input("Fecha de venta:", value=date.today())
+                    with col_vp2:
+                        st.info(f"💰 Valor a cobrar: ${valor_actual_pauta:,.0f}".replace(",", "."))
+                    with col_vp3:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("🚀 Registrar Pauta", use_container_width=True, type="primary"):
+                            if valor_actual_pauta == 0:
+                                st.error("⚠️ Define el 'Valor Pauta Online' en la Ficha de abajo y guárdalo primero.")
+                            else:
+                                fecha_pauta_str = fecha_nueva_pauta.strftime("%Y-%m-%d")
+                                df_dia_pauta = cargar_datos_clinica(fecha_pauta_str)
+                                
+                                # Generar hora "23:XX" para no chocar con agenda normal
+                                minuto_base = 0
+                                while f"23:{minuto_base:02d}" in df_dia_pauta['Hora'].values:
+                                    minuto_base += 1
+                                hora_final_pauta = f"23:{minuto_base:02d}"
+                                
+                                nueva_fila_pauta = pd.DataFrame([{
+                                    "Hora": hora_final_pauta, 
+                                    "Paciente": paciente_seleccionado, 
+                                    "Detalle / Motivo": "Pauta Online 💻",
+                                    "Dirección": "-", 
+                                    "Minutos de Viaje": 0, 
+                                    "Hora de Salida": "-", 
+                                    "Ruta Maps": "-", 
+                                    "Alarma": "-",
+                                    "Estado": "Entregada 📩", 
+                                    "N° Sesión": "Pauta", 
+                                    "Pago": "No pagada ❌",
+                                    "Recordatorio": "-"
+                                }])
+                                df_dia_pauta = pd.concat([df_dia_pauta, nueva_fila_pauta], ignore_index=True)
+                                
+                                with st.spinner("Registrando venta en el sistema..."):
+                                    guardar_dia("Clinica", fecha_pauta_str, df_dia_pauta)
+                                    st.success("✅ ¡Pauta registrada exitosamente!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                    
                 st.markdown("### 🗓️ Historial de Sesiones y Pautas")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
@@ -883,9 +933,7 @@ else:
                     if not df_filtro_pac.empty:
                         df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
                         
-                        # Extraer los valores guardados en la ficha para mostrarlos en la tabla
                         mapa_val_t3 = obtener_valor_por_paciente()
-                        mapa_pau_t3 = obtener_valor_pauta_por_paciente()
                         
                         def calcular_costo_visual(row):
                             motivo = str(row['Detalle / Motivo']).strip()
@@ -900,7 +948,6 @@ else:
                         
                         st.markdown("💡 *Edita la columna 'Pago' y guarda. La columna 'Costo Calculado' te muestra el valor exacto asignado a esa atención (Sesión normal vs Pauta).*")
                         
-                        # Reordenar columnas para que el costo se vea bien
                         cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Costo Calculado', 'Pago']
                         df_mostrar = df_mostrar[cols_order]
                         
