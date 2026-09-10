@@ -825,7 +825,7 @@ else:
             col_b1, col_b2, col_b3 = st.columns(3)
             with col_b1:
                 hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
+                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 selectores)", "240 minutos (4 horas)"])
             with col_b2:
                 act_b = st.text_input("Actividad:")
                 cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
@@ -969,11 +969,26 @@ else:
                                     time.sleep(1.5)
                                     st.rerun()
                                     
+                # --- NUEVO: BOTÓN DE PAGO MASIVO ---
                 st.markdown("### 🗓️ Historial de Sesiones y Pautas")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
                     df_filtro_pac = df_full_clinica_hist[(df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (~df_full_clinica_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
                     if not df_filtro_pac.empty:
+                        
+                        # LOGICA PAGO MASIVO
+                        deuda_count = len(df_filtro_pac[df_filtro_pac['Pago'] == "No pagada ❌"])
+                        if deuda_count > 0:
+                            if st.button(f"✅ Marcar las {deuda_count} sesiones/pautas adeudadas como PAGADAS", type="secondary", use_container_width=True):
+                                with st.spinner(f"Procesando el pago de las {deuda_count} atenciones..."):
+                                    df_update = cargar_tabla("Clinica")
+                                    mask_deuda = (df_update['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (df_update['Pago'] == "No pagada ❌")
+                                    df_update.loc[mask_deuda, 'Pago'] = "Pagada ✅"
+                                    guardar_tabla("Clinica", df_update)
+                                    st.success(f"✅ ¡Se han marcado {deuda_count} atenciones como pagadas!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                    
                         df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
                         
                         mapa_val_t3 = obtener_valor_por_paciente()
@@ -989,7 +1004,7 @@ else:
                             
                         df_mostrar['Costo Calculado'] = df_mostrar.apply(calcular_costo_visual, axis=1)
                         
-                        st.markdown("💡 *Edita la columna 'Pago' y guarda para actualizar el estado contable.*")
+                        st.markdown("💡 *Edita la columna 'Pago' individualmente y guarda para actualizar el estado contable.*")
                         
                         cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Costo Calculado', 'Pago']
                         df_mostrar = df_mostrar[cols_order]
@@ -1103,7 +1118,6 @@ else:
 
         st.markdown("---")
         
-        # --- NUEVO: TABLA EDITABLE INTELIGENTE EN EL DASHBOARD ---
         st.markdown(f"### 📋 Detalle de Atenciones - {mes_seleccionado} {año_seleccionado}")
         df_completo_dash = cargar_tabla("Clinica")
         if not df_completo_dash.empty and 'Fecha' in df_completo_dash.columns:
