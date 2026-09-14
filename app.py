@@ -412,6 +412,7 @@ else:
         es_almuerzo = (paciente.upper() == "ALMUERZO")
         hay_paciente = (paciente != "" and not es_almuerzo)
         
+        # MAGIA: Si no tiene dirección en la tabla, la saca de la ficha
         if hay_paciente and direccion == "":
             dir_guardada = mapa_direcciones.get(paciente.upper(), "")
             if dir_guardada != "":
@@ -505,11 +506,44 @@ else:
                         minutos_transcurridos = (ahora_chile - inicio_dia).total_seconds() / 60
                         pct = max(0, min(100, (minutos_transcurridos / total_minutos) * 100))
                         hora_actual_str = ahora_chile.strftime('%H:%M')
+                        hora_actual_time = ahora_chile.time()
                         
+                        # --- NUEVO: RADAR DE PRÓXIMO EVENTO ---
+                        texto_proximo = ""
+                        for i_h, h_str_b in enumerate(horas_30_min):
+                            h_obj_b = datetime.strptime(h_str_b, "%H:%M").time()
+                            if h_obj_b > hora_actual_time and i_h < len(df_clinica) and i_h < len(df_personal):
+                                pac_b = str(df_clinica.at[i_h, 'Paciente']).strip()
+                                mot_b = str(df_clinica.at[i_h, 'Detalle / Motivo']).strip()
+                                act_b = str(df_personal.at[i_h, 'Actividad']).strip()
+                                
+                                evento_b = ""
+                                if pac_b != "" and pac_b.upper() != "ALMUERZO":
+                                    if mot_b == "Pauta Online 💻":
+                                        evento_b = f"Pauta Online: {pac_b}"
+                                    else:
+                                        evento_b = f"Paciente: {pac_b}"
+                                elif mot_b in ["Gimnasio 🏋️", "Personal / Trámite 🛑"]:
+                                    evento_b = mot_b.replace(' 🏋️', '').replace(' 🛑', '')
+                                elif pac_b.upper() == "ALMUERZO":
+                                    evento_b = "Almuerzo"
+                                elif act_b != "":
+                                    evento_b = act_b.replace("🩺 Atendiendo: ", "Paciente: ")
+                                    
+                                if evento_b != "":
+                                    hora_evento_dt = ahora_chile.replace(hour=h_obj_b.hour, minute=h_obj_b.minute, second=0, microsecond=0)
+                                    mins_faltantes = int((hora_evento_dt - ahora_chile).total_seconds() / 60)
+                                    texto_proximo = f"<div style='margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bdc3c7;'><span style='color: #e67e22; font-size: 0.95rem; font-weight: bold;'>👉 Próximo a las {h_str_b}: {evento_b} (en {mins_faltantes} min)</span></div>"
+                                    break
+                                    
+                        if texto_proximo == "":
+                            texto_proximo = "<div style='margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bdc3c7;'><span style='color: #18BC9C; font-size: 0.95rem; font-weight: bold;'>👉 No hay más eventos agendados. ¡Turno terminado! 🎉</span></div>"
+                        # ----------------------------------------
+
                         linea_html = f"""
                         <div style="margin: 25px 0 35px 0; padding: 15px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border: 1px solid #f0f2f6;">
                             <p style="margin-top: 0; margin-bottom: 20px; color: #2C3E50; font-weight: bold; font-size: 0.95rem;">
-                                ⏳ Tracking de Jornada (Faltan {int(total_minutos - minutos_transcurridos)} min para terminar)
+                                ⏳ Tracking de Jornada (Faltan {int(total_minutos - minutos_transcurridos)} min para terminar el día)
                             </p>
                             <div style="position: relative; width: 100%; height: 6px; background-color: #E0E6ED; border-radius: 3px;">
                                 <div style="position: absolute; left: 0; top: 0; height: 100%; width: {pct}%; background-color: #E74C3C; border-radius: 3px;"></div>
@@ -521,6 +555,7 @@ else:
                                 <span>14:00</span>
                                 <span>20:30</span>
                             </div>
+                            {texto_proximo}
                         </div>
                         """
                         st.markdown(linea_html, unsafe_allow_html=True)
@@ -620,6 +655,25 @@ else:
                                         else: fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
                                 fecha_iter += timedelta(days=1)
                                 dias_buscados += 1
+                                
+                            if sesiones_logradas > 0 and m_direccion.strip() != "":
+                                df_fichas_sync = cargar_tabla("Fichas")
+                                if df_fichas_sync.empty or 'Paciente' not in df_fichas_sync.columns:
+                                    df_fichas_sync = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta'])
+                                if 'Dirección' not in df_fichas_sync.columns: df_fichas_sync['Dirección'] = ""
+                                if 'Valor Pauta' not in df_fichas_sync.columns: df_fichas_sync['Valor Pauta'] = ""
+                                
+                                mask_f = df_fichas_sync['Paciente'].astype(str).str.strip().str.upper() == m_paciente.strip().upper()
+                                if mask_f.any():
+                                    idx_f = df_fichas_sync[mask_f].index[0]
+                                    if str(df_fichas_sync.at[idx_f, 'Dirección']).strip() != m_direccion.strip():
+                                        df_fichas_sync.at[idx_f, 'Dirección'] = m_direccion.strip()
+                                        guardar_tabla("Fichas", df_fichas_sync)
+                                else:
+                                    nueva_fila = pd.DataFrame({'Paciente': [m_paciente.strip().title()], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [m_direccion.strip()], 'Valor Pauta': [""]})
+                                    df_fichas_sync = pd.concat([df_fichas_sync, nueva_fila], ignore_index=True)
+                                    guardar_tabla("Fichas", df_fichas_sync)
+
                         if sesiones_logradas == m_sesiones: st.success("✅ ¡Agendado!")
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
@@ -808,10 +862,35 @@ else:
             }
         )
         if btn_guardar_clinica:
+            df_fichas_sync = cargar_tabla("Fichas")
+            if df_fichas_sync.empty or 'Paciente' not in df_fichas_sync.columns:
+                df_fichas_sync = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta'])
+            if 'Dirección' not in df_fichas_sync.columns: df_fichas_sync['Dirección'] = ""
+            if 'Valor Pauta' not in df_fichas_sync.columns: df_fichas_sync['Valor Pauta'] = ""
+            
+            cambios_fichas = False
+            for _, r in df_clinica_editado.iterrows():
+                pac = str(r['Paciente']).strip()
+                dir_cal = str(r['Dirección']).strip()
+                if pac != "" and pac.upper() != "ALMUERZO" and dir_cal != "" and dir_cal != "-":
+                    mask = df_fichas_sync['Paciente'].astype(str).str.strip().str.upper() == pac.upper()
+                    if mask.any():
+                        idx_f = df_fichas_sync[mask].index[0]
+                        if str(df_fichas_sync.at[idx_f, 'Dirección']).strip() != dir_cal:
+                            df_fichas_sync.at[idx_f, 'Dirección'] = dir_cal
+                            cambios_fichas = True
+                    else:
+                        nueva_fila = pd.DataFrame({'Paciente': [pac.title()], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [dir_cal], 'Valor Pauta': [""]})
+                        df_fichas_sync = pd.concat([df_fichas_sync, nueva_fila], ignore_index=True)
+                        cambios_fichas = True
+            
+            if cambios_fichas:
+                guardar_tabla("Fichas", df_fichas_sync)
+
             exito1 = guardar_dia("Clinica", fecha_str, df_clinica_editado)
             exito2 = guardar_dia("Personal", fecha_str, df_personal)
             if exito1 and exito2:
-                st.success("¡Agenda guardada!")
+                st.success("¡Agenda guardada y Fichas sincronizadas!")
                 st.rerun()
 
     with tab2:
@@ -825,7 +904,7 @@ else:
             col_b1, col_b2, col_b3 = st.columns(3)
             with col_b1:
                 hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 selectores)", "240 minutos (4 horas)"])
+                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
             with col_b2:
                 act_b = st.text_input("Actividad:")
                 cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
@@ -969,14 +1048,12 @@ else:
                                     time.sleep(1.5)
                                     st.rerun()
                                     
-                # --- NUEVO: BOTÓN DE PAGO MASIVO ---
                 st.markdown("### 🗓️ Historial de Sesiones y Pautas")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
                     df_filtro_pac = df_full_clinica_hist[(df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (~df_full_clinica_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
                     if not df_filtro_pac.empty:
                         
-                        # LOGICA PAGO MASIVO
                         deuda_count = len(df_filtro_pac[df_filtro_pac['Pago'] == "No pagada ❌"])
                         if deuda_count > 0:
                             if st.button(f"✅ Marcar las {deuda_count} sesiones/pautas adeudadas como PAGADAS", type="secondary", use_container_width=True):
@@ -1167,7 +1244,6 @@ else:
                         df_full_fichas_dash = cargar_tabla("Fichas")
                         
                         for index, row in df_editado_dash.iterrows():
-                            # 1. Actualizar Pago en la Clínica
                             hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
                             mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
                                            (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
@@ -1177,7 +1253,6 @@ else:
                                 idx_clin = df_full_clinica_dash[mask_clinica].index[0]
                                 df_full_clinica_dash.at[idx_clin, 'Pago'] = row['Pago']
                             
-                            # 2. Actualizar Costo en la Ficha del Paciente (Para matar el $0)
                             nuevo_costo = str(row['Costo']).replace("$", "").replace(".", "").replace(",", "").strip()
                             pac_upper = str(row['Paciente']).strip().upper()
                             es_pauta = (str(row['Detalle / Motivo']).strip() == "Pauta Online 💻")
