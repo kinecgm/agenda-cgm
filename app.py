@@ -901,32 +901,69 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
-        with st.expander("⏳ Bloqueo Rápido de Tiempo (60 min o más)"):
-            col_b1, col_b2, col_b3 = st.columns(3)
-            with col_b1:
-                hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
-            with col_b2:
-                act_b = st.text_input("Actividad:")
-                cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
-            with col_b3:
-                st.markdown("<br><br>", unsafe_allow_html=True)
-                btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
-                
-            if btn_aplicar_bloqueo:
-                if act_b.strip() == "": st.error("Escribe el nombre de la actividad.")
-                else:
-                    slots_necesarios = int(duracion_b.split(" ")[0]) // 30
-                    idx_inicio = df_personal.index[df_personal['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_inicio_b].tolist()[0]
-                    idx_fin = min(idx_inicio + slots_necesarios, len(df_personal))
+        # --- NUEVO: BLOQUEO POR DÍAS COMPLETOS ---
+        with st.expander("⏳ Bloqueos de Agenda (Por Horas o Día Completo)"):
+            tab_bloq_hora, tab_bloq_dia = st.tabs(["⏱️ Por Horas", "🚫 Día Completo"])
+            
+            with tab_bloq_hora:
+                col_b1, col_b2, col_b3 = st.columns(3)
+                with col_b1:
+                    hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
+                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
+                with col_b2:
+                    act_b = st.text_input("Actividad:")
+                    cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
+                with col_b3:
+                    st.markdown("<br><br>", unsafe_allow_html=True)
+                    btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
                     
-                    with st.spinner("Bloqueando..."):
-                        for i in range(idx_inicio, idx_fin):
+                if btn_aplicar_bloqueo:
+                    if act_b.strip() == "": st.error("Escribe el nombre de la actividad.")
+                    else:
+                        slots_necesarios = int(duracion_b.split(" ")[0]) // 30
+                        idx_inicio = df_personal.index[df_personal['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_inicio_b].tolist()[0]
+                        idx_fin = min(idx_inicio + slots_necesarios, len(df_personal))
+                        
+                        with st.spinner("Bloqueando..."):
+                            for i in range(idx_inicio, idx_fin):
+                                if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                                    df_personal.at[i, 'Actividad'] = act_b
+                                    df_personal.at[i, 'Categoría'] = cat_b
+                            guardar_dia("Personal", fecha_str, df_personal)
+                            st.success(f"✅ ¡Bloqueo de {duracion_b} aplicado!")
+                            time.sleep(1)
+                            st.rerun()
+
+            with tab_bloq_dia:
+                motivo_dia = st.text_input("Motivo del bloqueo (ej: Feriado, Vacaciones, Trámites, Enfermedad):", key="motivo_dia_completo")
+                col_bd1, col_bd2 = st.columns(2)
+                with col_bd1:
+                    btn_bloquear_dia = st.button("🚫 Bloquear Día Completo", use_container_width=True, type="primary")
+                with col_bd2:
+                    btn_desbloquear_dia = st.button("🔓 Liberar Día Completo", use_container_width=True)
+                    
+                if btn_bloquear_dia:
+                    if motivo_dia.strip() == "": st.error("Escribe un motivo primero.")
+                    else:
+                        with st.spinner("Bloqueando todo el día..."):
+                            for i in range(len(df_personal)):
+                                # No sobreescribimos a los pacientes ya agendados por seguridad
+                                if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                                    df_personal.at[i, 'Actividad'] = motivo_dia
+                                    df_personal.at[i, 'Categoría'] = "General"
+                            guardar_dia("Personal", fecha_str, df_personal)
+                            st.success("✅ ¡Día bloqueado completo!")
+                            time.sleep(1)
+                            st.rerun()
+                
+                if btn_desbloquear_dia:
+                    with st.spinner("Liberando el día..."):
+                        for i in range(len(df_personal)):
                             if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
-                                df_personal.at[i, 'Actividad'] = act_b
-                                df_personal.at[i, 'Categoría'] = cat_b
+                                df_personal.at[i, 'Actividad'] = ""
+                                df_personal.at[i, 'Categoría'] = "-"
                         guardar_dia("Personal", fecha_str, df_personal)
-                        st.success(f"✅ ¡Bloqueo de {duracion_b} aplicado!")
+                        st.success("✅ ¡Día liberado!")
                         time.sleep(1)
                         st.rerun()
 
