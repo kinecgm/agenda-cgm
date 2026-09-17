@@ -60,10 +60,8 @@ def conectar_bd():
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
     
-    # ⚠️ REVISA ESTA LÍNEA ⚠️
-    # Si te sigue dando error 404, borra la línea de abajo y usa open_by_url pegando tu link de Sheets.
-    doc_kine = cliente.open("Base_Datos_Kine") 
-    # doc_kine = cliente.open_by_url("PEGA_AQUÍ_TU_LINK_COMPLETO_DE_GOOGLE_SHEETS")
+    # CONEXIÓN DIRECTA POR ENLACE (A PRUEBA DE FALLOS)
+    doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1UWyFJrlYcP_PK4fVYVPxbARIobNl4p8DuQ8OgyNU6aA/edit?gid=0#gid=0")
     
     return doc_kine, creds
 
