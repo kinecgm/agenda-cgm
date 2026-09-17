@@ -60,8 +60,8 @@ def conectar_bd():
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
     
-    # ENLACE AUTOCONFIGURADO PARA LA NUEVA PLANILLA DE LA ABOGADA
-    doc_legal = cliente.open_by_url("https://docs.google.com/spreadsheets/d/17CWurZFK9iDQsp8NvM1N2nGRWlHjJjJfaaI3V-S_2wE/edit")
+    # ENLACE ACTUALIZADO CON TU PLANILLA ESPECÍFICA
+    doc_legal = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1Bb1bzJWzVDxrMQLINqP4ALOsLuRTTrKWFn1ibvq5v8Q/edit?gid=0#gid=0")
     
     return doc_legal, creds
 
