@@ -59,7 +59,12 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/tu_link_largo_aqui/edit")
+    
+    # ⚠️ REVISA ESTA LÍNEA ⚠️
+    # Si te sigue dando error 404, borra la línea de abajo y usa open_by_url pegando tu link de Sheets.
+    doc_kine = cliente.open("Base_Datos_Kine") 
+    # doc_kine = cliente.open_by_url("PEGA_AQUÍ_TU_LINK_COMPLETO_DE_GOOGLE_SHEETS")
+    
     return doc_kine, creds
 
 try: 
@@ -508,7 +513,6 @@ else:
                         hora_actual_str = ahora_chile.strftime('%H:%M')
                         hora_actual_time = ahora_chile.time()
                         
-                        # --- NUEVO: RADAR DE PRÓXIMO EVENTO ---
                         texto_proximo = ""
                         for i_h, h_str_b in enumerate(horas_30_min):
                             h_obj_b = datetime.strptime(h_str_b, "%H:%M").time()
@@ -538,7 +542,6 @@ else:
                                     
                         if texto_proximo == "":
                             texto_proximo = "<div style='margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bdc3c7;'><span style='color: #18BC9C; font-size: 0.95rem; font-weight: bold;'>👉 No hay más eventos agendados. ¡Turno terminado! 🎉</span></div>"
-                        # ----------------------------------------
 
                         linea_html = f"""
                         <div style="margin: 25px 0 35px 0; padding: 15px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border: 1px solid #f0f2f6;">
