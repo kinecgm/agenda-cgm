@@ -59,7 +59,7 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    doc_kine = cliente.open("Base_Datos_Kine")
+    doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/tu_link_largo_aqui/edit")
     return doc_kine, creds
 
 try: 
