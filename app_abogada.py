@@ -12,14 +12,14 @@ from geopy.distance import geodesic
 from streamlit_geolocation import streamlit_geolocation
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
-st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
+st.set_page_config(page_title="Agenda Legal", page_icon="⚖️", layout="wide")
 
 # --- ESTILOS PERSONALIZADOS AVANZADOS ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
-    .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
+    .subtitulo { color: #34495E; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
@@ -45,8 +45,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<p class="titulo-principal">Centro de Comando</p>', unsafe_allow_html=True)
-st.markdown('<p class="subtitulo">Kinesiología CGM — Orden y Planificación</p>', unsafe_allow_html=True)
+st.markdown('<p class="titulo-principal">Centro de Comando Legal</p>', unsafe_allow_html=True)
+st.markdown('<p class="subtitulo">Estudio Jurídico — Orden y Planificación</p>', unsafe_allow_html=True)
 
 # --- CONEXIÓN A GOOGLE SHEETS Y CALENDAR ---
 @st.cache_resource
@@ -60,10 +60,10 @@ def conectar_bd():
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
     
-    # ENLACE DE TU PLANILLA ORIGINAL DE KINESIOLOGÍA
-    doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1UWyFJrlYcP_PK4fVYVPxbARIobNl4p8DuQ8OgyNU6aA/edit?gid=0#gid=0")
+    # ENLACE ACTUALIZADO CON TU PLANILLA ESPECÍFICA
+    doc_legal = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1Bb1bzJWzVDxrMQLINqP4ALOsLuRTTrKWFn1ibvq5v8Q/edit?gid=0#gid=0")
     
-    return doc_kine, creds
+    return doc_legal, creds
 
 try: 
     doc, credenciales_gcp = conectar_bd()
@@ -93,13 +93,6 @@ def guardar_tabla(nombre_hoja, df):
         df_limpio = df.fillna("").astype(str)
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
-
-def parse_dinero(val):
-    try:
-        if str(val).strip() == "": return 0.0
-        return float(str(val).replace('$', '').replace('.', '').replace(',', '').strip())
-    except:
-        return 0.0
 
 # --- MEMORIA Y NAVEGACIÓN ---
 if "app_fecha_sel" not in st.session_state: st.session_state.app_fecha_sel = date.today()
@@ -132,7 +125,7 @@ if st.session_state.app_vista == "calendario":
     dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
     cols_dias = st.columns(7)
     for i, d in enumerate(dias_semana):
-        cols_dias[i].markdown(f"<div class='dia-semana' style='text-align:center; font-weight:700; color:#18BC9C; padding-bottom: 5px;'>{d}</div>", unsafe_allow_html=True)
+        cols_dias[i].markdown(f"<div class='dia-semana' style='text-align:center; font-weight:700; color:#34495E; padding-bottom: 5px;'>{d}</div>", unsafe_allow_html=True)
 
     cal = calendar.monthcalendar(año_act, mes_act)
     for week in cal:
@@ -185,19 +178,17 @@ else:
         return True 
 
     # --- FUNCIONES ---
-    def cargar_datos_clinica(fecha):
-        df_completo = cargar_tabla("Clinica")
+    def cargar_datos_agenda(fecha):
+        df_completo = cargar_tabla("Agenda")
         if not df_completo.empty and 'Fecha' in df_completo.columns:
             df_dia = df_completo[df_completo['Fecha'] == fecha]
-            if not df_dia.empty: 
-                if 'Abono ($)' not in df_dia.columns: df_dia['Abono ($)'] = ""
-                return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
+            if not df_dia.empty: return df_dia.drop(columns=['Fecha']).reset_index(drop=True)
         return pd.DataFrame({
-            "Hora": horas_30_min, "Paciente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
+            "Hora": horas_30_min, "Cliente": [""] * len(horas_30_min), "Detalle / Motivo": [""] * len(horas_30_min),
             "Dirección": [""] * len(horas_30_min), "Minutos de Viaje": [0] * len(horas_30_min), 
             "Hora de Salida": [""] * len(horas_30_min), "Ruta Maps": [""] * len(horas_30_min), "Alarma": [""] * len(horas_30_min),
-            "Estado": ["Libre 🟢"] * len(horas_30_min), "N° Sesión": [""] * len(horas_30_min), "Pago": ["-"] * len(horas_30_min),
-            "Abono ($)": [""] * len(horas_30_min), "Recordatorio": [""] * len(horas_30_min)
+            "Estado": ["Libre 🟢"] * len(horas_30_min), "N° Reunión": [""] * len(horas_30_min), "Pago": ["-"] * len(horas_30_min),
+            "Recordatorio": [""] * len(horas_30_min)
         })
 
     def cargar_datos_personal(fecha):
@@ -214,13 +205,13 @@ else:
 
     def calcular_tiempo_gps(origen_coords_o_texto, destino):
         try:
-            geolocator = Nominatim(user_agent="sustancia_x_agenda", timeout=5)
+            geolocator = Nominatim(user_agent="estudio_legal_agenda", timeout=5)
             if isinstance(origen_coords_o_texto, tuple): coords_1 = origen_coords_o_texto 
             else:
-                loc_origen = geolocator.geocode(origen_coords_o_texto + ", Valparaiso, Chile")
+                loc_origen = geolocator.geocode(origen_coords_o_texto + ", Chile")
                 if not loc_origen: return 0
                 coords_1 = (loc_origen.latitude, loc_origen.longitude)
-            loc_destino = geolocator.geocode(destino + ", Valparaiso, Chile")
+            loc_destino = geolocator.geocode(destino + ", Chile")
             if loc_destino:
                 coords_2 = (loc_destino.latitude, loc_destino.longitude)
                 distancia_km = geodesic(coords_1, coords_2).kilometers
@@ -229,56 +220,58 @@ else:
         except Exception: pass
         return 0
 
-    def obtener_lista_pacientes():
-        pacientes = set()
-        df_clinica = cargar_tabla("Clinica")
-        if not df_clinica.empty and 'Paciente' in df_clinica.columns:
-            for p in df_clinica['Paciente'].dropna().unique():
+    def obtener_lista_clientes():
+        clientes = set()
+        df_agenda = cargar_tabla("Agenda")
+        if not df_agenda.empty and 'Cliente' in df_agenda.columns:
+            for p in df_agenda['Cliente'].dropna().unique():
                 p_str = str(p).strip()
-                if p_str != "" and p_str.upper() != "ALMUERZO": pacientes.add(p_str.title()) 
+                if p_str != "" and p_str.upper() != "ALMUERZO": clientes.add(p_str.title()) 
         
-        df_fichas = cargar_tabla("Fichas")
-        if not df_fichas.empty and 'Paciente' in df_fichas.columns:
-            for p in df_fichas['Paciente'].dropna().unique():
+        df_clientes = cargar_tabla("Clientes")
+        if not df_clientes.empty and 'Cliente' in df_clientes.columns:
+            for p in df_clientes['Cliente'].dropna().unique():
                 p_str = str(p).strip()
-                if p_str != "": pacientes.add(p_str.title()) 
+                if p_str != "": clientes.add(p_str.title()) 
                 
-        return sorted(list(pacientes))
+        return sorted(list(clientes))
 
-    def calcular_estadisticas_globales(nombre_paciente):
-        nombre_norm = str(nombre_paciente).strip().upper()
-        df_completo = cargar_tabla("Clinica")
-        if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
-        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
-        tot_sesiones = len(df_pac)
-        pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅"])])
-        adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
-        return tot_sesiones, pagadas, adeudadas
+    def calcular_estadisticas_globales(nombre_cliente):
+        nombre_norm = str(nombre_cliente).strip().upper()
+        df_completo = cargar_tabla("Agenda")
+        if df_completo.empty or 'Cliente' not in df_completo.columns: return 0, 0, 0
+        df_cli = df_completo[(df_completo['Cliente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+        tot_reuniones = len(df_cli)
+        pagadas = len(df_cli[df_cli['Pago'] == "Pagada ✅"])
+        adeudadas = len(df_cli[df_cli['Pago'] == "No pagada ❌"])
+        return tot_reuniones, pagadas, adeudadas
 
-    def obtener_telefono_por_paciente():
-        df_fichas = cargar_tabla("Fichas")
-        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Teléfono' not in df_fichas.columns: return {}
-        return dict(zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Teléfono'].astype(str).str.strip()))
+    def obtener_telefono_por_cliente():
+        df_clientes = cargar_tabla("Clientes")
+        if df_clientes.empty or 'Cliente' not in df_clientes.columns or 'Teléfono' not in df_clientes.columns: return {}
+        return dict(zip(df_clientes['Cliente'].astype(str).str.strip().str.upper(), df_clientes['Teléfono'].astype(str).str.strip()))
         
-    def obtener_direccion_por_paciente():
-        df_fichas = cargar_tabla("Fichas")
-        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Dirección' not in df_fichas.columns: return {}
-        return dict(zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Dirección'].astype(str).str.strip()))
+    def obtener_direccion_por_cliente():
+        df_clientes = cargar_tabla("Clientes")
+        if df_clientes.empty or 'Cliente' not in df_clientes.columns or 'Dirección' not in df_clientes.columns: return {}
+        return dict(zip(df_clientes['Cliente'].astype(str).str.strip().str.upper(), df_clientes['Dirección'].astype(str).str.strip()))
 
-    def obtener_valor_por_paciente():
-        df_fichas = cargar_tabla("Fichas")
-        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Valor Sesión' not in df_fichas.columns: return {}
+    def obtener_honorarios_por_cliente():
+        df_clientes = cargar_tabla("Clientes")
+        if df_clientes.empty or 'Cliente' not in df_clientes.columns or 'Honorarios' not in df_clientes.columns: return {}
         mapa = {}
-        for nombre, valor in zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Valor Sesión']):
-            mapa[nombre] = parse_dinero(valor)
+        for nombre, valor in zip(df_clientes['Cliente'].astype(str).str.strip().str.upper(), df_clientes['Honorarios']):
+            try: mapa[nombre] = float(str(valor).replace(".", "").replace(",", "").strip())
+            except (ValueError, TypeError): mapa[nombre] = 0.0
         return mapa
 
-    def obtener_valor_pauta_por_paciente():
-        df_fichas = cargar_tabla("Fichas")
-        if df_fichas.empty or 'Paciente' not in df_fichas.columns or 'Valor Pauta' not in df_fichas.columns: return {}
+    def obtener_valor_asesoria_por_cliente():
+        df_clientes = cargar_tabla("Clientes")
+        if df_clientes.empty or 'Cliente' not in df_clientes.columns or 'Valor Asesoría' not in df_clientes.columns: return {}
         mapa = {}
-        for nombre, valor in zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Valor Pauta']):
-            mapa[nombre] = parse_dinero(valor)
+        for nombre, valor in zip(df_clientes['Cliente'].astype(str).str.strip().str.upper(), df_clientes['Valor Asesoría']):
+            try: mapa[nombre] = float(str(valor).replace(".", "").replace(",", "").strip())
+            except (ValueError, TypeError): mapa[nombre] = 0.0
         return mapa
 
     def construir_link_whatsapp(telefono, fecha_visual_str, hora_str):
@@ -286,12 +279,12 @@ else:
         solo_digitos = "".join(ch for ch in str(telefono) if ch.isdigit())
         if solo_digitos == "": return ""
         if not solo_digitos.startswith("56"): solo_digitos = "56" + solo_digitos.lstrip("0")
-        mensaje = f"Hola, ¿qué tal? Quería confirmar la sesión agendada para el {fecha_visual_str} a las {hora_str} hrs. Cualquier cosa me avisas 🙂"
+        mensaje = f"Estimado(a), le escribo para confirmar nuestra reunión/audiencia agendada para el {fecha_visual_str} a las {hora_str} hrs. Cualquier duda me comenta. Saludos."
         texto_codificado = urllib.parse.quote(mensaje)
         return f"https://wa.me/{solo_digitos}?text={texto_codificado}"
 
     def calcular_dashboard_mensual(fecha_referencia):
-        df_completo = cargar_tabla("Clinica")
+        df_completo = cargar_tabla("Agenda")
         resultado = {
             "total_sesiones": 0, "pagadas": 0, "adeudadas": 0, 
             "ingresos": 0.0, "por_cobrar": 0.0, 
@@ -303,69 +296,45 @@ else:
         prefijo_mes = fecha_referencia.strftime("%Y-%m")
         df_mes = df_completo[df_completo['Fecha'].astype(str).str.startswith(prefijo_mes)].copy()
         df_mes = df_mes[~df_mes['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
-        df_mes = df_mes[(df_mes['Paciente'].astype(str).str.strip() != "") & (df_mes['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+        df_mes = df_mes[(df_mes['Cliente'].astype(str).str.strip() != "") & (df_mes['Cliente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
         if df_mes.empty: return resultado
         
-        mapa_valores = obtener_valor_por_paciente()
-        mapa_pautas = obtener_valor_pauta_por_paciente()
-        df_mes['Paciente_norm'] = df_mes['Paciente'].astype(str).str.strip().str.upper()
-        if 'Abono ($)' not in df_mes.columns: df_mes['Abono ($)'] = ""
+        mapa_valores = obtener_honorarios_por_cliente()
+        mapa_asesorias = obtener_valor_asesoria_por_cliente()
+        df_mes['Cliente_norm'] = df_mes['Cliente'].astype(str).str.strip().str.upper()
         
-        for index, row in df_mes.iterrows():
-            pac_norm = row['Paciente_norm']
-            es_pauta = (str(row['Detalle / Motivo']).strip() == "Pauta Online 💻")
-            val_sesion = mapa_pautas.get(pac_norm, 0.0) if es_pauta else mapa_valores.get(pac_norm, 0.0)
+        def asignar_valor(row):
+            if str(row['Detalle / Motivo']).strip() == "Asesoría Online 💻":
+                return mapa_asesorias.get(row['Cliente_norm'], 0.0)
+            return mapa_valores.get(row['Cliente_norm'], 0.0)
             
-            pago_estado = str(row['Pago']).strip()
-            abono_val = parse_dinero(row['Abono ($)'])
-            
-            ingreso_hoy = 0.0
-            deuda_hoy = 0.0
-            pagada_count = 0
-            adeudada_count = 0
-            
-            if pago_estado == "Pagada ✅":
-                ingreso_hoy = abono_val if abono_val > 0 else val_sesion
-                pagada_count = 1
-            elif pago_estado == "Pagada (Excedente) ✅":
-                ingreso_hoy = abono_val
-                pagada_count = 1
-            elif pago_estado == "Pagada con Billetera ✅":
-                ingreso_hoy = 0.0 # Dinero entró antes
-                pagada_count = 1
-            elif pago_estado == "Abono Parcial ⏳":
-                ingreso_hoy = abono_val
-                deuda_hoy = max(0.0, val_sesion - abono_val)
-                adeudada_count = 1
-            elif pago_estado == "No pagada ❌":
-                deuda_hoy = val_sesion
-                adeudada_count = 1
-                
-            resultado["total_sesiones"] += 1
-            resultado["pagadas"] += pagada_count
-            resultado["adeudadas"] += adeudada_count
-            resultado["ingresos"] += ingreso_hoy
-            resultado["por_cobrar"] += deuda_hoy
-            
-            if es_pauta:
-                resultado["ingresos_pautas"] += ingreso_hoy
-                resultado["deuda_pautas"] += deuda_hoy
-            else:
-                resultado["ingresos_sesiones"] += ingreso_hoy
-                resultado["deuda_sesiones"] += deuda_hoy
-
-        pacientes_totales = df_mes['Paciente_norm'].unique()
-        pacientes_deuda = df_mes[df_mes['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])]['Paciente_norm'].unique()
-        resultado["pacientes_totales"] = len(pacientes_totales)
-        resultado["pacientes_con_deuda"] = len(pacientes_deuda)
+        df_mes['Valor'] = df_mes.apply(asignar_valor, axis=1)
+        df_mes['Es_Asesoria'] = df_mes['Detalle / Motivo'].astype(str).str.strip() == "Asesoría Online 💻"
+        
+        resultado["total_sesiones"] = len(df_mes)
+        resultado["pagadas"] = len(df_mes[df_mes['Pago'] == "Pagada ✅"])
+        resultado["adeudadas"] = len(df_mes[df_mes['Pago'] == "No pagada ❌"])
+        
+        resultado["ingresos"] = df_mes[df_mes['Pago'] == "Pagada ✅"]['Valor'].sum()
+        resultado["ingresos_sesiones"] = df_mes[(df_mes['Pago'] == "Pagada ✅") & (~df_mes['Es_Asesoria'])]['Valor'].sum()
+        resultado["ingresos_pautas"] = df_mes[(df_mes['Pago'] == "Pagada ✅") & (df_mes['Es_Asesoria'])]['Valor'].sum()
+        
+        resultado["por_cobrar"] = df_mes[df_mes['Pago'] == "No pagada ❌"]['Valor'].sum()
+        resultado["deuda_sesiones"] = df_mes[(df_mes['Pago'] == "No pagada ❌") & (~df_mes['Es_Asesoria'])]['Valor'].sum()
+        resultado["deuda_pautas"] = df_mes[(df_mes['Pago'] == "No pagada ❌") & (df_mes['Es_Asesoria'])]['Valor'].sum()
+        
+        clientes_totales = df_mes['Cliente_norm'].unique()
+        clientes_deuda = df_mes[df_mes['Pago'] == "No pagada ❌"]['Cliente_norm'].unique()
+        resultado["pacientes_totales"] = len(clientes_totales)
+        resultado["pacientes_con_deuda"] = len(clientes_deuda)
         return resultado
 
-    def calcular_sesion_historica(nombre_paciente, fecha_actual, hora_actual):
-        if nombre_paciente == "": return ""
-        nombre_norm = str(nombre_paciente).strip().upper()
-        df_completo = cargar_tabla("Clinica")
-        if df_completo.empty or 'Paciente' not in df_completo.columns: return "1"
-        df_hist = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️", "Pauta Online 💻"]))].copy()
+    def calcular_sesion_historica(nombre_cliente, fecha_actual, hora_actual):
+        if nombre_cliente == "": return ""
+        nombre_norm = str(nombre_cliente).strip().upper()
+        df_completo = cargar_tabla("Agenda")
+        if df_completo.empty or 'Cliente' not in df_completo.columns: return "1"
+        df_hist = df_completo[(df_completo['Cliente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️", "Asesoría Online 💻"]))].copy()
         if df_hist.empty: return "1"
         df_hist['FechaHora'] = pd.to_datetime(df_hist['Fecha'] + ' ' + df_hist['Hora'])
         fecha_hora_actual = pd.to_datetime(f"{fecha_actual} {hora_actual}")
@@ -373,7 +342,7 @@ else:
         return str(contador if contador > 0 else 1)
 
     # --- CARGA DE DATOS ---
-    df_clinica = cargar_datos_clinica(fecha_str)
+    df_agenda = cargar_datos_agenda(fecha_str)
     df_personal = cargar_datos_personal(fecha_str)
 
     # --- EL PUNTO ROJO EN LA TABLA ---
@@ -385,153 +354,151 @@ else:
                 h_obj = datetime.strptime(h_str, "%H:%M").time()
                 h_next = datetime.strptime(horas_30_min[idx+1], "%H:%M").time() if idx < len(horas_30_min)-1 else datetime.strptime("20:30", "%H:%M").time()
                 if h_obj <= hora_actual < h_next:
-                    if idx < len(df_clinica): df_clinica.at[idx, 'Hora'] = f"🔴 {h_str}"
+                    if idx < len(df_agenda): df_agenda.at[idx, 'Hora'] = f"🔴 {h_str}"
                     if idx < len(df_personal): df_personal.at[idx, 'Hora'] = f"🔴 {h_str}"
                     break
         except: pass
 
-    df_clinica['Paciente'] = df_clinica['Paciente'].fillna("") 
-    df_clinica['Dirección'] = df_clinica['Dirección'].fillna("").astype(str)
-    df_clinica['Minutos de Viaje'] = pd.to_numeric(df_clinica['Minutos de Viaje'], errors='coerce').fillna(0).astype(int)
-    df_clinica['Hora de Salida'] = df_clinica['Hora de Salida'].fillna("").astype(str)
-    df_clinica['Ruta Maps'] = df_clinica['Ruta Maps'].fillna("").astype(str)
-    if 'Alarma' not in df_clinica.columns: df_clinica['Alarma'] = ""
-    df_clinica['Alarma'] = df_clinica['Alarma'].fillna("").astype(str)
-    df_clinica['N° Sesión'] = df_clinica['N° Sesión'].fillna("").astype(str)
-    df_clinica['Pago'] = df_clinica['Pago'].fillna("-").astype(str)
-    if 'Abono ($)' not in df_clinica.columns: df_clinica['Abono ($)'] = ""
-    df_clinica['Abono ($)'] = df_clinica['Abono ($)'].fillna("").astype(str)
-    if 'Recordatorio' not in df_clinica.columns: df_clinica['Recordatorio'] = ""
-    df_clinica['Recordatorio'] = df_clinica['Recordatorio'].fillna("").astype(str)
+    df_agenda['Cliente'] = df_agenda['Cliente'].fillna("") 
+    df_agenda['Dirección'] = df_agenda['Dirección'].fillna("").astype(str)
+    df_agenda['Minutos de Viaje'] = pd.to_numeric(df_agenda['Minutos de Viaje'], errors='coerce').fillna(0).astype(int)
+    df_agenda['Hora de Salida'] = df_agenda['Hora de Salida'].fillna("").astype(str)
+    df_agenda['Ruta Maps'] = df_agenda['Ruta Maps'].fillna("").astype(str)
+    if 'Alarma' not in df_agenda.columns: df_agenda['Alarma'] = ""
+    df_agenda['Alarma'] = df_agenda['Alarma'].fillna("").astype(str)
+    df_agenda['N° Reunión'] = df_agenda['N° Reunión'].fillna("").astype(str)
+    df_agenda['Pago'] = df_agenda['Pago'].fillna("-").astype(str)
+    if 'Recordatorio' not in df_agenda.columns: df_agenda['Recordatorio'] = ""
+    df_agenda['Recordatorio'] = df_agenda['Recordatorio'].fillna("").astype(str)
 
     df_personal['Actividad'] = df_personal['Actividad'].fillna("").astype(str)
     df_personal['Categoría'] = df_personal['Categoría'].fillna("-").astype(str)
     df_personal['Notas'] = df_personal['Notas'].fillna("").astype(str)
 
     # MAPEO SEGURO POR HORA
-    mapa_pacientes_clinica = {}
-    for _, row_c in df_clinica.iterrows():
+    mapa_clientes_agenda = {}
+    for _, row_c in df_agenda.iterrows():
         h_limp = str(row_c['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
-        p_val = str(row_c['Paciente']).strip()
-        if p_val != "" and p_val.upper() != "ALMUERZO":
-            mapa_pacientes_clinica[h_limp] = p_val
+        c_val = str(row_c['Cliente']).strip()
+        if c_val != "" and c_val.upper() != "ALMUERZO":
+            mapa_clientes_agenda[h_limp] = c_val
 
     for idx_p in df_personal.index:
         h_pers = str(df_personal.at[idx_p, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
         act_personal = str(df_personal.at[idx_p, 'Actividad']).strip()
-        if h_pers in mapa_pacientes_clinica:
-            pac_clinica = mapa_pacientes_clinica[h_pers]
-            if not act_personal.startswith("🩺 Atendiendo"):
-                df_personal.at[idx_p, 'Actividad'] = f"🩺 Atendiendo: {pac_clinica}"
-                df_personal.at[idx_p, 'Categoría'] = "Clínica"
+        if h_pers in mapa_clientes_agenda:
+            cli_agenda = mapa_clientes_agenda[h_pers]
+            if not act_personal.startswith("⚖️ Reunión"):
+                df_personal.at[idx_p, 'Actividad'] = f"⚖️ Reunión: {cli_agenda}"
+                df_personal.at[idx_p, 'Categoría'] = "Estudio Legal"
         else:
-            if act_personal.startswith("🩺 Atendiendo"):
+            if act_personal.startswith("⚖️ Reunión"):
                 df_personal.at[idx_p, 'Actividad'] = ""
                 df_personal.at[idx_p, 'Categoría'] = "-"
 
     mapa_personal = obtener_actividad_por_hora(df_personal) 
-    mapa_telefonos = obtener_telefono_por_paciente()
-    mapa_direcciones = obtener_direccion_por_paciente()
+    mapa_telefonos = obtener_telefono_por_cliente()
+    mapa_direcciones = obtener_direccion_por_cliente()
 
-    for index in df_clinica.index:
-        paciente = str(df_clinica.at[index, 'Paciente']).strip()
-        direccion = str(df_clinica.at[index, 'Dirección']).strip()
-        hora_str = str(df_clinica.at[index, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
-        minutos = int(df_clinica.at[index, 'Minutos de Viaje'])
-        pago_actual = str(df_clinica.at[index, 'Pago']).strip()
-        sesion_actual = str(df_clinica.at[index, 'N° Sesión']).strip()
-        detalle_actual = str(df_clinica.at[index, 'Detalle / Motivo']).strip()
+    for index in df_agenda.index:
+        cliente = str(df_agenda.at[index, 'Cliente']).strip()
+        direccion = str(df_agenda.at[index, 'Dirección']).strip()
+        hora_str = str(df_agenda.at[index, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+        minutos = int(df_agenda.at[index, 'Minutos de Viaje'])
+        pago_actual = str(df_agenda.at[index, 'Pago']).strip()
+        reunion_actual = str(df_agenda.at[index, 'N° Reunión']).strip()
+        detalle_actual = str(df_agenda.at[index, 'Detalle / Motivo']).strip()
         actividad_personal = mapa_personal.get(hora_str, "") 
         es_tramite = (detalle_actual == "Personal / Trámite 🛑")
         es_gimnasio = (detalle_actual == "Gimnasio 🏋️")
-        es_cita_clinica = (detalle_actual in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
-        es_almuerzo = (paciente.upper() == "ALMUERZO")
-        hay_paciente = (paciente != "" and not es_almuerzo)
+        es_cita_legal = (detalle_actual in ["Audiencia ⚖️", "Reunión Presencial 🤝", "Redacción / Estudio 📝", "Asesoría Online 💻"])
+        es_almuerzo = (cliente.upper() == "ALMUERZO")
+        hay_cliente = (cliente != "" and not es_almuerzo)
         
         # MAGIA: Si no tiene dirección en la tabla, la saca de la ficha
-        if hay_paciente and direccion == "":
-            dir_guardada = mapa_direcciones.get(paciente.upper(), "")
+        if hay_cliente and direccion == "":
+            dir_guardada = mapa_direcciones.get(cliente.upper(), "")
             if dir_guardada != "":
                 direccion = dir_guardada
-                df_clinica.at[index, 'Dirección'] = direccion
+                df_agenda.at[index, 'Dirección'] = direccion
 
-        if hay_paciente or es_tramite or es_gimnasio or es_cita_clinica:
+        if hay_cliente or es_tramite or es_gimnasio or es_cita_legal:
             if direccion != "" and direccion != "-":
                 query_maps = urllib.parse.quote(direccion + ", Chile")
-                df_clinica.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
-            else: df_clinica.at[index, 'Ruta Maps'] = ""
+                df_agenda.at[index, 'Ruta Maps'] = f"https://www.google.com/maps/search/?api=1&query={query_maps}"
+            else: df_agenda.at[index, 'Ruta Maps'] = ""
             
             if minutos > 0:
                 try:
                     tiempo_agendado = datetime.strptime(hora_str, "%H:%M")
                     tiempo_salida = tiempo_agendado - timedelta(minutes=(minutos + 5))
-                    df_clinica.at[index, 'Hora de Salida'] = tiempo_salida.strftime("%H:%M")
+                    df_agenda.at[index, 'Hora de Salida'] = tiempo_salida.strftime("%H:%M")
                     formato_fecha = fecha_str.replace("-", "")
                     h_ini = tiempo_salida.strftime("%H%M%S")
                     h_fin = tiempo_agendado.strftime("%H%M%S")
-                    txt_ev = urllib.parse.quote(f"🚗 VIAJE: {paciente if hay_paciente else detalle_actual}")
-                    dest = urllib.parse.quote(direccion if direccion != "" else "Destino de atención")
-                    df_clinica.at[index, 'Alarma'] = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={txt_ev}&dates={formato_fecha}T{h_ini}/{formato_fecha}T{h_fin}&details=Hora+de+salir+hacia:+{dest}"
+                    txt_ev = urllib.parse.quote(f"🚗 VIAJE: {cliente if hay_cliente else detalle_actual}")
+                    dest = urllib.parse.quote(direccion if direccion != "" else "Destino")
+                    df_agenda.at[index, 'Alarma'] = f"https://calendar.google.com/calendar/render?action=TEMPLATE&text={txt_ev}&dates={formato_fecha}T{h_ini}/{formato_fecha}T{h_fin}&details=Hora+de+salir+hacia:+{dest}"
                 except:
-                    df_clinica.at[index, 'Hora de Salida'] = ""
-                    df_clinica.at[index, 'Alarma'] = ""
+                    df_agenda.at[index, 'Hora de Salida'] = ""
+                    df_agenda.at[index, 'Alarma'] = ""
             else:
-                df_clinica.at[index, 'Hora de Salida'] = ""
-                df_clinica.at[index, 'Alarma'] = ""
+                df_agenda.at[index, 'Hora de Salida'] = ""
+                df_agenda.at[index, 'Alarma'] = ""
 
             if es_tramite or es_gimnasio:
-                df_clinica.at[index, 'Pago'] = "-"
-                df_clinica.at[index, 'N° Sesión'] = "-"
+                df_agenda.at[index, 'Pago'] = "-"
+                df_agenda.at[index, 'N° Reunión'] = "-"
             else:
-                if pago_actual == "-" or pago_actual == "": df_clinica.at[index, 'Pago'] = "No pagada ❌"
+                if pago_actual == "-" or pago_actual == "": df_agenda.at[index, 'Pago'] = "No pagada ❌"
                 es_numero_auto = False
-                if sesion_actual == "" or sesion_actual == "-": es_numero_auto = True
+                if reunion_actual == "" or reunion_actual == "-": es_numero_auto = True
                 else:
-                    try: float(sesion_actual); es_numero_auto = True
+                    try: float(reunion_actual); es_numero_auto = True
                     except ValueError: es_numero_auto = False
                 
                 if es_numero_auto: 
-                    if detalle_actual == "Pauta Online 💻":
-                        df_clinica.at[index, 'N° Sesión'] = "Pauta"
+                    if detalle_actual == "Asesoría Online 💻":
+                        df_agenda.at[index, 'N° Reunión'] = "Asesoría"
                     else:
-                        df_clinica.at[index, 'N° Sesión'] = calcular_sesion_historica(paciente, fecha_str, hora_str)
+                        df_agenda.at[index, 'N° Reunión'] = calcular_sesion_historica(cliente, fecha_str, hora_str)
                         
-            if hay_paciente and detalle_actual != "Pauta Online 💻":
-                telefono_paciente = mapa_telefonos.get(paciente.strip().upper(), "")
-                df_clinica.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_paciente, fecha_visual, hora_str)
-            else: df_clinica.at[index, 'Recordatorio'] = ""
+            if hay_cliente and detalle_actual != "Asesoría Online 💻":
+                telefono_cliente = mapa_telefonos.get(cliente.strip().upper(), "")
+                df_agenda.at[index, 'Recordatorio'] = construir_link_whatsapp(telefono_cliente, fecha_visual, hora_str)
+            else: df_agenda.at[index, 'Recordatorio'] = ""
         else:
-            df_clinica.at[index, 'Ruta Maps'] = ""; df_clinica.at[index, 'Hora de Salida'] = ""; df_clinica.at[index, 'Alarma'] = ""
-            df_clinica.at[index, 'N° Sesión'] = ""; df_clinica.at[index, 'Pago'] = "-"; df_clinica.at[index, 'Recordatorio'] = ""
+            df_agenda.at[index, 'Ruta Maps'] = ""; df_agenda.at[index, 'Hora de Salida'] = ""; df_agenda.at[index, 'Alarma'] = ""
+            df_agenda.at[index, 'N° Reunión'] = ""; df_agenda.at[index, 'Pago'] = "-"; df_agenda.at[index, 'Recordatorio'] = ""
 
-        if actividad_personal != "" and (hay_paciente or es_cita_clinica):
-            if actividad_personal.startswith("🩺 Atendiendo"): df_clinica.at[index, 'Estado'] = "Agendado 🔒"
-            else: df_clinica.at[index, 'Estado'] = "⚠️ TOPE HORARIO ⚠️"
-        elif actividad_personal != "": df_clinica.at[index, 'Estado'] = f"Bloqueado ({actividad_personal}) 🛑"
-        elif es_tramite: df_clinica.at[index, 'Estado'] = "Bloqueado 🛑"
-        elif es_gimnasio: df_clinica.at[index, 'Estado'] = "Gimnasio 🏋️"
-        elif detalle_actual == "Pauta Online 💻": df_clinica.at[index, 'Estado'] = "Entregada 📩"
-        elif es_cita_clinica or hay_paciente: df_clinica.at[index, 'Estado'] = "Agendado 🔒"
-        elif es_almuerzo: df_clinica.at[index, 'Estado'] = "-"
+        if actividad_personal != "" and (hay_cliente or es_cita_legal):
+            if actividad_personal.startswith("⚖️ Reunión"): df_agenda.at[index, 'Estado'] = "Agendado 🔒"
+            else: df_agenda.at[index, 'Estado'] = "⚠️ TOPE HORARIO ⚠️"
+        elif actividad_personal != "": df_agenda.at[index, 'Estado'] = f"Bloqueado ({actividad_personal}) 🛑"
+        elif es_tramite: df_agenda.at[index, 'Estado'] = "Bloqueado 🛑"
+        elif es_gimnasio: df_agenda.at[index, 'Estado'] = "Gimnasio 🏋️"
+        elif detalle_actual == "Asesoría Online 💻": df_agenda.at[index, 'Estado'] = "Realizada 📩"
+        elif es_cita_legal or hay_cliente: df_agenda.at[index, 'Estado'] = "Agendado 🔒"
+        elif es_almuerzo: df_agenda.at[index, 'Estado'] = "-"
         else:
             if index > 0:
-                paciente_ant = str(df_clinica.at[index - 1, 'Paciente']).strip()
-                detalle_ant = str(df_clinica.at[index - 1, 'Detalle / Motivo']).strip()
+                cliente_ant = str(df_agenda.at[index - 1, 'Cliente']).strip()
+                detalle_ant = str(df_agenda.at[index - 1, 'Detalle / Motivo']).strip()
                 if (detalle_ant == "Personal / Trámite 🛑") or (detalle_ant == "Gimnasio 🏋️"):
-                    df_clinica.at[index, 'Estado'] = f"Bloqueado ({paciente_ant if paciente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
+                    df_agenda.at[index, 'Estado'] = f"Bloqueado ({cliente_ant if cliente_ant != '' else ('Trámite' if detalle_ant == 'Personal / Trámite 🛑' else 'Gimnasio')}) ⏳"
                     continue
-                elif (detalle_ant in ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"]) or (paciente_ant != "" and paciente_ant.upper() != "ALMUERZO"):
-                    df_clinica.at[index, 'Estado'] = f"En sesión ({paciente_ant if paciente_ant != '' else 'Paciente'}) ⏳"
+                elif (detalle_ant in ["Audiencia ⚖️", "Reunión Presencial 🤝", "Redacción / Estudio 📝", "Asesoría Online 💻"]) or (cliente_ant != "" and cliente_ant.upper() != "ALMUERZO"):
+                    df_agenda.at[index, 'Estado'] = f"En reunión ({cliente_ant if cliente_ant != '' else 'Cliente'}) ⏳"
                     continue
-            df_clinica.at[index, 'Estado'] = "Libre 🟢"
+            df_agenda.at[index, 'Estado'] = "Libre 🟢"
 
     # --- PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["🩺 Calendario", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
+    tab1, tab2, tab3, tab4 = st.tabs(["⚖️ Calendario Legal", "🕰️ Horario Personal", "📁 Expedientes", "📊 Dashboard"])
 
     with tab1:
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1: 
-            st.header(f"📅 Agenda Clínica - {fecha_visual}")
+            st.header(f"📅 Agenda Legal - {fecha_visual}")
             if es_hoy:
                 try:
                     ahora_chile = pd.Timestamp.now('America/Santiago')
@@ -547,23 +514,23 @@ else:
                         texto_proximo = ""
                         for i_h, h_str_b in enumerate(horas_30_min):
                             h_obj_b = datetime.strptime(h_str_b, "%H:%M").time()
-                            if h_obj_b > hora_actual_time and i_h < len(df_clinica) and i_h < len(df_personal):
-                                pac_b = str(df_clinica.at[i_h, 'Paciente']).strip()
-                                mot_b = str(df_clinica.at[i_h, 'Detalle / Motivo']).strip()
+                            if h_obj_b > hora_actual_time and i_h < len(df_agenda) and i_h < len(df_personal):
+                                cli_b = str(df_agenda.at[i_h, 'Cliente']).strip()
+                                mot_b = str(df_agenda.at[i_h, 'Detalle / Motivo']).strip()
                                 act_b = str(df_personal.at[i_h, 'Actividad']).strip()
                                 
                                 evento_b = ""
-                                if pac_b != "" and pac_b.upper() != "ALMUERZO":
-                                    if mot_b == "Pauta Online 💻":
-                                        evento_b = f"Pauta Online: {pac_b}"
+                                if cli_b != "" and cli_b.upper() != "ALMUERZO":
+                                    if mot_b == "Asesoría Online 💻":
+                                        evento_b = f"Asesoría Online: {cli_b}"
                                     else:
-                                        evento_b = f"Paciente: {pac_b}"
+                                        evento_b = f"Cliente: {cli_b}"
                                 elif mot_b in ["Gimnasio 🏋️", "Personal / Trámite 🛑"]:
                                     evento_b = mot_b.replace(' 🏋️', '').replace(' 🛑', '')
-                                elif pac_b.upper() == "ALMUERZO":
+                                elif cli_b.upper() == "ALMUERZO":
                                     evento_b = "Almuerzo"
                                 elif act_b != "":
-                                    evento_b = act_b.replace("🩺 Atendiendo: ", "Paciente: ")
+                                    evento_b = act_b.replace("⚖️ Reunión: ", "Cliente: ")
                                     
                                 if evento_b != "":
                                     hora_evento_dt = ahora_chile.replace(hour=h_obj_b.hour, minute=h_obj_b.minute, second=0, microsecond=0)
@@ -572,7 +539,7 @@ else:
                                     break
                                     
                         if texto_proximo == "":
-                            texto_proximo = "<div style='margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bdc3c7;'><span style='color: #18BC9C; font-size: 0.95rem; font-weight: bold;'>👉 No hay más eventos agendados. ¡Turno terminado! 🎉</span></div>"
+                            texto_proximo = "<div style='margin-top: 15px; padding-top: 12px; border-top: 1px dashed #bdc3c7;'><span style='color: #34495E; font-size: 0.95rem; font-weight: bold;'>👉 No hay más eventos agendados. ¡Jornada terminada! 🎉</span></div>"
 
                         linea_html = f"""
                         <div style="margin: 25px 0 35px 0; padding: 15px 20px; background: white; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.1); border: 1px solid #f0f2f6;">
@@ -580,9 +547,9 @@ else:
                                 ⏳ Tracking de Jornada (Faltan {int(total_minutos - minutos_transcurridos)} min para terminar el día)
                             </p>
                             <div style="position: relative; width: 100%; height: 6px; background-color: #E0E6ED; border-radius: 3px;">
-                                <div style="position: absolute; left: 0; top: 0; height: 100%; width: {pct}%; background-color: #E74C3C; border-radius: 3px;"></div>
-                                <div style="position: absolute; left: {pct}%; top: -7px; transform: translateX(-50%); width: 20px; height: 20px; background-color: #E74C3C; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
-                                <div style="position: absolute; left: {pct}%; top: -35px; transform: translateX(-50%); background-color: #E74C3C; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; z-index: 10;">{hora_actual_str}</div>
+                                <div style="position: absolute; left: 0; top: 0; height: 100%; width: {pct}%; background-color: #34495E; border-radius: 3px;"></div>
+                                <div style="position: absolute; left: {pct}%; top: -7px; transform: translateX(-50%); width: 20px; height: 20px; background-color: #34495E; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></div>
+                                <div style="position: absolute; left: {pct}%; top: -35px; transform: translateX(-50%); background-color: #34495E; color: white; padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; z-index: 10;">{hora_actual_str}</div>
                             </div>
                             <div style="display: flex; justify-content: space-between; color: #95a5a6; font-size: 0.8rem; font-weight: 600; margin-top: 15px;">
                                 <span>08:00</span>
@@ -597,48 +564,48 @@ else:
                 
         with col_t2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
-            btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
+            btn_guardar_agenda = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_agenda")
         
-        with st.expander("⚡ Agendar Existente / Paquetes / Reagendar"):
-            tab_ex, tab_ag, tab_re = st.tabs(["➕ Un Paciente Existente", "🔄 Múltiples Sesiones", "✂️ Reagendar Cita"])
+        with st.expander("⚡ Agendar Existente / Reuniones Periódicas / Reagendar"):
+            tab_ex, tab_ag, tab_re = st.tabs(["➕ Un Cliente Existente", "🔄 Múltiples Reuniones", "✂️ Reagendar"])
             
             with tab_ex:
-                lista_pacs = obtener_lista_pacientes()
-                if not lista_pacs:
-                    st.info("Primero agrega un paciente manualmente en la tabla inferior o en Fichas Clínicas.")
+                lista_clis = obtener_lista_clientes()
+                if not lista_clis:
+                    st.info("Primero agrega un cliente manualmente en la tabla inferior o en Expedientes.")
                 else:
                     col_e1, col_e2, col_e3 = st.columns(3)
                     with col_e1:
-                        pac_ex = st.selectbox("1. Paciente Existente:", ["-- Selecciona --"] + lista_pacs)
-                        mot_ex = st.selectbox("Motivo de sesión:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"], key="mot_ex")
+                        cli_ex = st.selectbox("1. Cliente Existente:", ["-- Selecciona --"] + lista_clis)
+                        mot_ex = st.selectbox("Motivo:", ["Audiencia ⚖️", "Reunión Presencial 🤝", "Redacción / Estudio 📝", "Asesoría Online 💻"], key="mot_ex")
                     with col_e2:
                         hora_ex = st.selectbox(f"2. Hora (para este día):", horas_30_min, key="hora_ex")
                     with col_e3:
                         st.markdown("<br><br>", unsafe_allow_html=True)
                         btn_ex = st.button("🚀 Agendar en esta hora", use_container_width=True)
                     if btn_ex:
-                        if pac_ex == "-- Selecciona --": st.error("Por favor selecciona un paciente.")
+                        if cli_ex == "-- Selecciona --": st.error("Por favor selecciona un cliente.")
                         else:
-                            idx_ex = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_ex].tolist()[0]
-                            if str(df_clinica.at[idx_ex, 'Paciente']).strip() != "": st.error("⚠️ Esta hora ya está ocupada.")
+                            idx_ex = df_agenda.index[df_agenda['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_ex].tolist()[0]
+                            if str(df_agenda.at[idx_ex, 'Cliente']).strip() != "": st.error("⚠️ Esta hora ya está ocupada.")
                             else:
                                 with st.spinner("Agendando..."):
-                                    df_clinica.at[idx_ex, 'Paciente'] = pac_ex
-                                    df_clinica.at[idx_ex, 'Detalle / Motivo'] = mot_ex
-                                    df_clinica.at[idx_ex, 'Dirección'] = mapa_direcciones.get(pac_ex.upper(), "")
-                                    df_clinica.at[idx_ex, 'Minutos de Viaje'] = 0
-                                    df_clinica.at[idx_ex, 'Pago'] = "No pagada ❌"
-                                    df_clinica.at[idx_ex, 'N° Sesión'] = ""
-                                    guardar_dia("Clinica", fecha_str, df_clinica)
-                                    st.success(f"✅ ¡{pac_ex} agendado a las {hora_ex}!")
+                                    df_agenda.at[idx_ex, 'Cliente'] = cli_ex
+                                    df_agenda.at[idx_ex, 'Detalle / Motivo'] = mot_ex
+                                    df_agenda.at[idx_ex, 'Dirección'] = mapa_direcciones.get(cli_ex.upper(), "")
+                                    df_agenda.at[idx_ex, 'Minutos de Viaje'] = 0
+                                    df_agenda.at[idx_ex, 'Pago'] = "No pagada ❌"
+                                    df_agenda.at[idx_ex, 'N° Reunión'] = ""
+                                    guardar_dia("Agenda", fecha_str, df_agenda)
+                                    st.success(f"✅ ¡{cli_ex} agendado a las {hora_ex}!")
                                     time.sleep(1)
                                     st.rerun()
 
             with tab_ag:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
-                    m_paciente = st.text_input("Paciente:")
-                    m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
+                    m_cliente = st.text_input("Cliente:")
+                    m_motivo = st.selectbox("Motivo:", ["Audiencia ⚖️", "Reunión Presencial 🤝", "Redacción / Estudio 📝", "Asesoría Online 💻"])
                     m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
                 with col_m2:
                     m_fecha_inicio = st.date_input("Inicio:")
@@ -646,13 +613,13 @@ else:
                     dias_map = {"Lunes": 0, "Martes": 1, "Miércoles": 2, "Jueves": 3, "Viernes": 4, "Sábado": 5, "Domingo": 6}
                     m_dias = st.multiselect("Días:", list(dias_map.keys()), default=["Lunes", "Miércoles"])
                 with col_m3:
-                    m_direccion = st.text_input("Dirección (opc.):")
+                    m_direccion = st.text_input("Dirección/Tribunal (opc.):")
                     m_viaje = st.number_input("Viaje (min):", min_value=0, value=0, step=1)
                     st.markdown("<br>", unsafe_allow_html=True)
                     btn_agendar = st.button("🚀 Programar", use_container_width=True)
 
                 if btn_agendar:
-                    if m_paciente.strip() == "": st.error("Ingresa el paciente.")
+                    if m_cliente.strip() == "": st.error("Ingresa el cliente.")
                     elif not m_dias: st.error("Selecciona días.")
                     else:
                         sesiones_logradas, dias_buscados = 0, 0
@@ -662,26 +629,26 @@ else:
                             while sesiones_logradas < m_sesiones and dias_buscados < 365:
                                 if fecha_iter.weekday() in dias_obj:
                                     f_str = fecha_iter.strftime("%Y-%m-%d")
-                                    df_dia_futuro = cargar_datos_clinica(f_str)
+                                    df_dia_futuro = cargar_datos_agenda(f_str)
                                     df_pers_futuro = cargar_datos_personal(f_str)
                                     mapa_personal_futuro = obtener_actividad_por_hora(df_pers_futuro) 
                                     idx_hora = df_dia_futuro.index[df_dia_futuro['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == m_hora].tolist()
                                     if idx_hora:
                                         idx = idx_hora[0]
-                                        p_act = str(df_dia_futuro.at[idx, 'Paciente']).strip()
+                                        p_act = str(df_dia_futuro.at[idx, 'Cliente']).strip()
                                         d_act = str(df_dia_futuro.at[idx, 'Detalle / Motivo']).strip()
                                         a_act = mapa_personal_futuro.get(m_hora, "")
-                                        ocupado = True if p_act != "" or d_act in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_act != "" and not a_act.startswith("🩺")) else False
+                                        ocupado = True if p_act != "" or d_act in ["Personal / Trámite 🛑", "Gimnasio 🏋️"] or (a_act != "" and not a_act.startswith("⚖️")) else False
                                         if not ocupado:
-                                            df_dia_futuro.at[idx, 'Paciente'] = m_paciente
+                                            df_dia_futuro.at[idx, 'Cliente'] = m_cliente
                                             df_dia_futuro.at[idx, 'Detalle / Motivo'] = m_motivo
                                             dir_final = m_direccion
-                                            if dir_final == "": dir_final = mapa_direcciones.get(m_paciente.strip().upper(), "")
+                                            if dir_final == "": dir_final = mapa_direcciones.get(m_cliente.strip().upper(), "")
                                             df_dia_futuro.at[idx, 'Dirección'] = dir_final
                                             df_dia_futuro.at[idx, 'Minutos de Viaje'] = m_viaje
                                             df_dia_futuro.at[idx, 'Pago'] = "No pagada ❌"
-                                            df_dia_futuro.at[idx, 'N° Sesión'] = "" 
-                                            exito_agendar = guardar_dia("Clinica", f_str, df_dia_futuro)
+                                            df_dia_futuro.at[idx, 'N° Reunión'] = "" 
+                                            exito_agendar = guardar_dia("Agenda", f_str, df_dia_futuro)
                                             if exito_agendar:
                                                 fechas_exitosas.append(fecha_iter.strftime("%d/%m/%Y"))
                                                 sesiones_logradas += 1
@@ -691,31 +658,30 @@ else:
                                 dias_buscados += 1
                                 
                             if sesiones_logradas > 0 and m_direccion.strip() != "":
-                                df_fichas_sync = cargar_tabla("Fichas")
-                                if df_fichas_sync.empty or 'Paciente' not in df_fichas_sync.columns:
-                                    df_fichas_sync = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta', 'Billetera'])
-                                if 'Dirección' not in df_fichas_sync.columns: df_fichas_sync['Dirección'] = ""
-                                if 'Valor Pauta' not in df_fichas_sync.columns: df_fichas_sync['Valor Pauta'] = ""
-                                if 'Billetera' not in df_fichas_sync.columns: df_fichas_sync['Billetera'] = 0.0
+                                df_clientes_sync = cargar_tabla("Clientes")
+                                if df_clientes_sync.empty or 'Cliente' not in df_clientes_sync.columns:
+                                    df_clientes_sync = pd.DataFrame(columns=['Cliente', 'Teléfono', 'RUT / ID', 'Materia / Causa', 'Notas del Caso', 'Honorarios', 'Dirección', 'Valor Asesoría'])
+                                if 'Dirección' not in df_clientes_sync.columns: df_clientes_sync['Dirección'] = ""
+                                if 'Valor Asesoría' not in df_clientes_sync.columns: df_clientes_sync['Valor Asesoría'] = ""
                                 
-                                mask_f = df_fichas_sync['Paciente'].astype(str).str.strip().str.upper() == m_paciente.strip().upper()
+                                mask_f = df_clientes_sync['Cliente'].astype(str).str.strip().str.upper() == m_cliente.strip().upper()
                                 if mask_f.any():
-                                    idx_f = df_fichas_sync[mask_f].index[0]
-                                    if str(df_fichas_sync.at[idx_f, 'Dirección']).strip() != m_direccion.strip():
-                                        df_fichas_sync.at[idx_f, 'Dirección'] = m_direccion.strip()
-                                        guardar_tabla("Fichas", df_fichas_sync)
+                                    idx_f = df_clientes_sync[mask_f].index[0]
+                                    if str(df_clientes_sync.at[idx_f, 'Dirección']).strip() != m_direccion.strip():
+                                        df_clientes_sync.at[idx_f, 'Dirección'] = m_direccion.strip()
+                                        guardar_tabla("Clientes", df_clientes_sync)
                                 else:
-                                    nueva_fila = pd.DataFrame({'Paciente': [m_paciente.strip().title()], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [m_direccion.strip()], 'Valor Pauta': [""], 'Billetera': [0.0]})
-                                    df_fichas_sync = pd.concat([df_fichas_sync, nueva_fila], ignore_index=True)
-                                    guardar_tabla("Fichas", df_fichas_sync)
+                                    nueva_fila = pd.DataFrame({'Cliente': [m_cliente.strip().title()], 'Teléfono': [""], 'RUT / ID': [""], 'Materia / Causa': [""], 'Notas del Caso': [""], 'Honorarios': [""], 'Dirección': [m_direccion.strip()], 'Valor Asesoría': [""]})
+                                    df_clientes_sync = pd.concat([df_clientes_sync, nueva_fila], ignore_index=True)
+                                    guardar_tabla("Clientes", df_clientes_sync)
 
                         if sesiones_logradas == m_sesiones: st.success("✅ ¡Agendado!")
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
             with tab_re:
-                sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
-                opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
+                sesiones_activas = df_agenda[(df_agenda['Cliente'].str.strip() != "") & (df_agenda['Cliente'].str.upper() != "ALMUERZO")]
+                opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Cliente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
                 with col_r1:
                     cita_origen = st.selectbox("Cita de hoy:", opciones_citas)
@@ -728,46 +694,46 @@ else:
                     btn_reagendar = st.button("🚀 Ejecutar", use_container_width=True)
                 if btn_reagendar and cita_origen != "-- Selecciona --":
                     hora_origen = cita_origen.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").strip()
-                    idx_origen_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
+                    idx_origen_list = df_agenda.index[df_agenda['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
                     if idx_origen_list:
-                        fila_origen = df_clinica.iloc[idx_origen_list[0]]
+                        fila_origen = df_agenda.iloc[idx_origen_list[0]]
                         f_dest_str = fecha_destino.strftime("%Y-%m-%d")
-                        df_clinica_dest = cargar_datos_clinica(f_dest_str)
-                        idx_dest = df_clinica_dest.index[df_clinica_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()[0]
-                        if str(df_clinica_dest.at[idx_dest, 'Paciente']).strip() != "":
+                        df_agenda_dest = cargar_datos_agenda(f_dest_str)
+                        idx_dest = df_agenda_dest.index[df_agenda_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()[0]
+                        if str(df_agenda_dest.at[idx_dest, 'Cliente']).strip() != "":
                             st.error("⚠️ La hora de destino está ocupada.")
                         else:
                             with st.spinner("Procesando..."):
-                                df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
-                                df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
-                                df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
-                                df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
-                                df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
-                                df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
-                                exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
+                                df_agenda_dest.at[idx_dest, 'Cliente'] = str(fila_origen['Cliente'])
+                                df_agenda_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
+                                df_agenda_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
+                                df_agenda_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
+                                df_agenda_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
+                                df_agenda_dest.at[idx_dest, 'N° Reunión'] = "" 
+                                exito_r = guardar_dia("Agenda", f_dest_str, df_agenda_dest)
                                 if exito_r and accion_reagendar == "Mover":
-                                    idx_origen = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()[0]
-                                    df_clinica.at[idx_origen, 'Paciente'] = ""
-                                    df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
-                                    df_clinica.at[idx_origen, 'Dirección'] = ""
-                                    df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
-                                    df_clinica.at[idx_origen, 'Pago'] = "-"
-                                    df_clinica.at[idx_origen, 'N° Sesión'] = ""
-                                    guardar_dia("Clinica", fecha_str, df_clinica)
+                                    idx_origen = df_agenda.index[df_agenda['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()[0]
+                                    df_agenda.at[idx_origen, 'Cliente'] = ""
+                                    df_agenda.at[idx_origen, 'Detalle / Motivo'] = "-"
+                                    df_agenda.at[idx_origen, 'Dirección'] = ""
+                                    df_agenda.at[idx_origen, 'Minutos de Viaje'] = 0
+                                    df_agenda.at[idx_origen, 'Pago'] = "-"
+                                    df_agenda.at[idx_origen, 'N° Reunión'] = ""
+                                    guardar_dia("Agenda", fecha_str, df_agenda)
                                 if exito_r:
                                     st.success("✅ ¡Listo!")
                                     time.sleep(1)
                                     st.rerun()
 
-        with st.expander("🔍 Buscador de Pacientes"):
-            lista_pacientes_buscador = obtener_lista_pacientes()
-            if not lista_pacientes_buscador: st.info("No hay pacientes agendados.")
+        with st.expander("🔍 Buscador de Clientes"):
+            lista_clientes_buscador = obtener_lista_clientes()
+            if not lista_clientes_buscador: st.info("No hay clientes agendados.")
             else:
-                paciente_buscar = st.selectbox("Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes_buscador, key="buscador_paciente_cal")
-                if paciente_buscar != "-- Selecciona --":
-                    df_full_clinica = cargar_tabla("Clinica")
-                    if not df_full_clinica.empty and 'Paciente' in df_full_clinica.columns:
-                        df_filtro = df_full_clinica[df_full_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente_buscar.upper()]
+                cliente_buscar = st.selectbox("Selecciona un cliente:", ["-- Selecciona --"] + lista_clientes_buscador, key="buscador_cliente_cal")
+                if cliente_buscar != "-- Selecciona --":
+                    df_full_agenda = cargar_tabla("Agenda")
+                    if not df_full_agenda.empty and 'Cliente' in df_full_agenda.columns:
+                        df_filtro = df_full_agenda[df_full_agenda['Cliente'].astype(str).str.strip().str.upper() == cliente_buscar.upper()]
                         if not df_filtro.empty:
                             df_resumen = df_filtro[['Fecha', 'Hora', 'Detalle / Motivo', 'Estado', 'Pago']].sort_values(by=['Fecha', 'Hora'])
                             st.dataframe(df_resumen, use_container_width=True, hide_index=True)
@@ -775,11 +741,11 @@ else:
                             st.markdown("🎯 **Ir directamente al día para editar:**")
                             col_b1, col_b2 = st.columns([3, 1])
                             with col_b1:
-                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
-                                sesion_a_editar = st.selectbox("Seleccionar sesión", opciones_sesiones, label_visibility="collapsed")
+                                opciones_sesiones = ["-- Elige una reunión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
+                                sesion_a_editar = st.selectbox("Seleccionar reunión", opciones_sesiones, label_visibility="collapsed")
                             with col_b2:
                                 if st.button("🚀 Viajar al Día", use_container_width=True):
-                                    if sesion_a_editar != "-- Elige una sesión --":
+                                    if sesion_a_editar != "-- Elige una reunión --":
                                         fecha_destino_str = sesion_a_editar.split(" a las ")[0]
                                         try:
                                             fecha_obj = datetime.strptime(fecha_destino_str, "%Y-%m-%d").date()
@@ -789,10 +755,17 @@ else:
                                             st.rerun()
                                         except: pass
                                     else: st.error("Selecciona una cita válida de la lista.")
-                        else: st.warning("No se encontraron sesiones.")
+                        else: st.warning("No se encontraron reuniones.")
 
-        with st.expander("📲 Enviar a Google Calendar"):
+        with st.expander("📲 Enviar a Google Calendar (Pop-ups automáticos)"):
+            st.markdown("""
+            Asegúrate de haber seguido los pasos previos:
+            1. Agregar `google-api-python-client` a tu *requirements.txt*
+            2. Dar permisos a tu cuenta de Google Cloud
+            3. Compartir tu Google Calendar con el correo del robot.
+            """)
             correo_cal = st.text_input("Tu correo de Google Calendar (al que compartiste el acceso):", value="")
+            
             if st.button("🚀 Sincronizar este día", type="primary", use_container_width=True):
                 if correo_cal.strip() == "":
                     st.error("Debes ingresar tu correo.")
@@ -803,154 +776,123 @@ else:
                             service = build('calendar', 'v3', credentials=credenciales_gcp)
                             eventos_creados = 0
                             
-                            for idx, row in df_clinica.iterrows():
-                                pac = str(row['Paciente']).strip()
+                            for idx, row in df_agenda.iterrows():
+                                pac = str(row['Cliente']).strip()
                                 motivo = str(row['Detalle / Motivo']).strip()
                                 
-                                if pac != "" and pac.upper() != "ALMUERZO" and motivo != "Pauta Online 💻":
+                                if pac != "" and pac.upper() != "ALMUERZO" and motivo != "Asesoría Online 💻":
                                     hora = str(row['Hora']).replace("🔴", "").strip()
                                     direccion = str(row['Dirección']).strip()
                                     min_viaje = int(row['Minutos de Viaje'])
                                     
                                     h_ini = datetime.strptime(f"{fecha_str} {hora}", "%Y-%m-%d %H:%M")
                                     h_fin = h_ini + timedelta(minutes=45)
+                                    
                                     minutos_aviso = 30 + min_viaje
                                     
                                     evento = {
-                                        'summary': f'🩺 Kine: {pac}',
+                                        'summary': f'⚖️ Legal: {pac}',
                                         'location': direccion,
                                         'description': f'Motivo: {motivo}',
-                                        'start': {'dateTime': h_ini.strftime('%Y-%m-%dT%H:%M:%S'), 'timeZone': 'America/Santiago'},
-                                        'end': {'dateTime': h_fin.strftime('%Y-%m-%dT%H:%M:%S'), 'timeZone': 'America/Santiago'},
-                                        'reminders': {'useDefault': False, 'overrides': [{'method': 'popup', 'minutes': minutos_aviso}]},
+                                        'start': {
+                                            'dateTime': h_ini.strftime('%Y-%m-%dT%H:%M:%S'),
+                                            'timeZone': 'America/Santiago',
+                                        },
+                                        'end': {
+                                            'dateTime': h_fin.strftime('%Y-%m-%dT%H:%M:%S'),
+                                            'timeZone': 'America/Santiago',
+                                        },
+                                        'reminders': {
+                                            'useDefault': False,
+                                            'overrides': [
+                                                {'method': 'popup', 'minutes': minutos_aviso},
+                                            ],
+                                        },
                                     }
                                     service.events().insert(calendarId=correo_cal, body=evento).execute()
                                     eventos_creados += 1
+                            
                             if eventos_creados > 0:
                                 st.success(f"✅ ¡Éxito! Se crearon {eventos_creados} eventos en tu Google Calendar para hoy.")
+                                st.warning("⚠️ Nota: Presiona este botón solo una vez por día para no duplicar los eventos.")
                             else:
-                                st.info("No hay pacientes agendados para sincronizar hoy.")
+                                st.info("No hay reuniones agendadas para sincronizar hoy.")
+                    
                     except ImportError:
                         st.error("🚨 Falta instalar la librería. Ve a tu GitHub y agrega `google-api-python-client` en tu archivo `requirements.txt`.")
                     except Exception as e:
                         st.error(f"🚨 Error de permisos con Google: {e}")
 
         with st.expander("📍 Viajes y Tiempos"):
+            st.markdown("⚠️ *Tú escribes los minutos a mano en la tabla y al guardar, la app calcula la Hora de Salida.*")
             ubicacion_gps = streamlit_geolocation()
-            direccion_base = st.text_input("O escribe tu base:", value="Gomez Carreño, Viña del Mar")
+            direccion_base = st.text_input("O escribe tu base:", value="Juzgado Centro, Viña del Mar")
             if st.button("⚡ Calcular Tiempos Automáticos de Hoy"):
                 with st.spinner("Calculando..."):
                     origen_final = direccion_base
                     fallos = 0
                     if ubicacion_gps and ubicacion_gps.get('latitude') is not None: origen_final = (ubicacion_gps['latitude'], ubicacion_gps['longitude'])
-                    for idx in df_clinica.index:
-                        dir_paciente, hora_paciente = str(df_clinica.at[idx, 'Dirección']).strip(), str(df_clinica.at[idx, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
-                        if dir_paciente != "":
-                            minutos_gps = calcular_tiempo_gps(origen_final, dir_paciente)
-                            if minutos_gps > 0: df_clinica.at[idx, 'Minutos de Viaje'] = minutos_gps
+                    for idx in df_agenda.index:
+                        dir_cliente, hora_cliente = str(df_agenda.at[idx, 'Dirección']).strip(), str(df_agenda.at[idx, 'Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                        if dir_cliente != "":
+                            minutos_gps = calcular_tiempo_gps(origen_final, dir_cliente)
+                            if minutos_gps > 0: df_agenda.at[idx, 'Minutos de Viaje'] = minutos_gps
                             else: fallos += 1
-                    exito = guardar_dia("Clinica", fecha_str, df_clinica)
+                    exito = guardar_dia("Agenda", fecha_str, df_agenda)
                     if exito: 
                         if fallos > 0: st.warning(f"Se calculó, pero el mapa falló en {fallos} dirección(es). Pon los minutos manualmente.")
                         else: st.success("¡Calculado!")
                     st.rerun()
 
-        st.caption("💡 Tip: Escribe en la columna **Abono ($)** si te transfieren más o menos del costo de la sesión. Si es más, se guardará en su Billetera.")
-        df_clinica_editado = st.data_editor(
-            df_clinica, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_clinica_{fecha_str}",
-            column_order=("Hora", "Paciente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Recordatorio", "Estado", "N° Sesión", "Pago", "Abono ($)"),
+        st.caption("💡 Tip: Presiona 'Enter' luego de escribir en una celda para no perder los datos al guardar.")
+        df_agenda_editado = st.data_editor(
+            df_agenda, use_container_width=True, hide_index=True, num_rows="dynamic", key=f"editor_agenda_{fecha_str}",
+            column_order=("Hora", "Cliente", "Detalle / Motivo", "Dirección", "Minutos de Viaje", "Hora de Salida", "Ruta Maps", "Alarma", "Recordatorio", "Estado", "N° Reunión", "Pago"),
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
-                "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
-                "Dirección": st.column_config.TextColumn("Dirección"),
+                "Cliente": st.column_config.TextColumn("Cliente"),
+                "Detalle / Motivo": st.column_config.SelectboxColumn("Motivo", options=["Audiencia ⚖️", "Reunión Presencial 🤝", "Redacción / Estudio 📝", "Asesoría Online 💻", "Personal / Trámite 🛑", "Gimnasio 🏋️", "-"]),
+                "Dirección": st.column_config.TextColumn("Dirección / Tribunal"),
                 "Minutos de Viaje": st.column_config.NumberColumn("Min. Viaje", min_value=0, step=1),
                 "Hora de Salida": st.column_config.TextColumn("Salida", disabled=True),
                 "Ruta Maps": st.column_config.LinkColumn("🗺️ Mapa", disabled=True, display_text="Ver Mapa"),
+                "Alarma": st.column_config.LinkColumn("🔔 Alarma", disabled=True, display_text="Link Manual"),
                 "Recordatorio": st.column_config.LinkColumn("📲 WhatsApp", disabled=True, display_text="Enviar"),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
-                "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
-                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe números sin puntos si pagó algo distinto al valor")
+                "N° Reunión": st.column_config.TextColumn("Reunión", help="Calculado auto."),
+                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
             }
         )
-        if btn_guardar_clinica:
-            df_fichas_sync = cargar_tabla("Fichas")
-            if df_fichas_sync.empty or 'Paciente' not in df_fichas_sync.columns:
-                df_fichas_sync = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta', 'Billetera'])
-            if 'Dirección' not in df_fichas_sync.columns: df_fichas_sync['Dirección'] = ""
-            if 'Valor Pauta' not in df_fichas_sync.columns: df_fichas_sync['Valor Pauta'] = ""
-            if 'Billetera' not in df_fichas_sync.columns: df_fichas_sync['Billetera'] = 0.0
-            
-            df_fichas_sync['Billetera'] = pd.to_numeric(df_fichas_sync['Billetera'], errors='coerce').fillna(0.0)
+        if btn_guardar_agenda:
+            df_clientes_sync = cargar_tabla("Clientes")
+            if df_clientes_sync.empty or 'Cliente' not in df_clientes_sync.columns:
+                df_clientes_sync = pd.DataFrame(columns=['Cliente', 'Teléfono', 'RUT / ID', 'Materia / Causa', 'Notas del Caso', 'Honorarios', 'Dirección', 'Valor Asesoría'])
+            if 'Dirección' not in df_clientes_sync.columns: df_clientes_sync['Dirección'] = ""
+            if 'Valor Asesoría' not in df_clientes_sync.columns: df_clientes_sync['Valor Asesoría'] = ""
             
             cambios_fichas = False
-            mapa_val = obtener_valor_por_paciente()
-            mapa_pau = obtener_valor_pauta_por_paciente()
-            
-            # MAGIA CONTABLE: PROCESAR BILLETERAS Y ABONOS ANTES DE GUARDAR
-            for idx, r in df_clinica_editado.iterrows():
-                pac = str(r['Paciente']).strip()
+            for _, r in df_agenda_editado.iterrows():
+                pac = str(r['Cliente']).strip()
                 dir_cal = str(r['Dirección']).strip()
-                if pac != "" and pac.upper() != "ALMUERZO":
-                    
-                    # 1. Sincronizar Fichas nuevas o Direcciones
-                    mask_f = df_fichas_sync['Paciente'].astype(str).str.strip().str.upper() == pac.upper()
-                    if mask_f.any():
-                        idx_f = df_fichas_sync[mask_f].index[0]
-                        if dir_cal != "" and dir_cal != "-" and str(df_fichas_sync.at[idx_f, 'Dirección']).strip() != dir_cal:
-                            df_fichas_sync.at[idx_f, 'Dirección'] = dir_cal
+                if pac != "" and pac.upper() != "ALMUERZO" and dir_cal != "" and dir_cal != "-":
+                    mask = df_clientes_sync['Cliente'].astype(str).str.strip().str.upper() == pac.upper()
+                    if mask.any():
+                        idx_f = df_clientes_sync[mask].index[0]
+                        if str(df_clientes_sync.at[idx_f, 'Dirección']).strip() != dir_cal:
+                            df_clientes_sync.at[idx_f, 'Dirección'] = dir_cal
                             cambios_fichas = True
-                    elif dir_cal != "" and dir_cal != "-":
-                        nueva_fila = pd.DataFrame({'Paciente': [pac.title()], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [dir_cal], 'Valor Pauta': [""], 'Billetera': [0.0]})
-                        df_fichas_sync = pd.concat([df_fichas_sync, nueva_fila], ignore_index=True)
-                        cambios_fichas = True
-                        idx_f = df_fichas_sync.index[-1]
                     else:
-                        continue # No hay paciente en ficha y no hay dirección, saltamos
-                        
-                    # 2. Lógica de Billetera y Pagos
-                    pago_est = str(r['Pago']).strip()
-                    abono_val = parse_dinero(r['Abono ($)'])
-                    motivo = str(r['Detalle / Motivo']).strip()
-                    val_ses = mapa_pau.get(pac.upper(), 0.0) if motivo == "Pauta Online 💻" else mapa_val.get(pac.upper(), 0.0)
-                    
-                    billetera_act = float(df_fichas_sync.at[idx_f, 'Billetera'])
-                    
-                    # Caso A: Quiere descontar de la billetera
-                    if pago_est == "Descontar Billetera 💳":
-                        necesita = val_ses - abono_val # Por si paga una parte en cash y el resto billetera
-                        if necesita > 0:
-                            if billetera_act >= necesita:
-                                df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act - necesita
-                                df_clinica_editado.at[idx, 'Pago'] = "Pagada con Billetera ✅"
-                                st.toast(f"💳 Se descontaron ${necesita:,.0f} de la billetera de {pac}")
-                                cambios_fichas = True
-                            else:
-                                st.error(f"⚠️ {pac} solo tiene ${billetera_act:,.0f} a favor. No alcanza para descontar ${necesita:,.0f}.")
-                                df_clinica_editado.at[idx, 'Pago'] = "No pagada ❌"
-                        else:
-                            df_clinica_editado.at[idx, 'Pago'] = "Pagada ✅"
-                            
-                    # Caso B: Pagó de más (Genera Excedente a Billetera)
-                    elif pago_est not in ["Pagada (Excedente) ✅", "Pagada con Billetera ✅", "Descontar Billetera 💳"] and abono_val > val_ses and val_ses > 0:
-                        excedente = abono_val - val_ses
-                        df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act + excedente
-                        df_clinica_editado.at[idx, 'Pago'] = "Pagada (Excedente) ✅"
-                        st.toast(f"💰 Se guardaron ${excedente:,.0f} de excedente en la billetera de {pac}")
+                        nueva_fila = pd.DataFrame({'Cliente': [pac.title()], 'Teléfono': [""], 'RUT / ID': [""], 'Materia / Causa': [""], 'Notas del Caso': [""], 'Honorarios': [""], 'Dirección': [dir_cal], 'Valor Asesoría': [""]})
+                        df_clientes_sync = pd.concat([df_clientes_sync, nueva_fila], ignore_index=True)
                         cambios_fichas = True
-                        
-                    # Caso C: Pagó de menos (Abono Parcial Automático)
-                    elif pago_est == "No pagada ❌" and 0 < abono_val < val_ses:
-                        df_clinica_editado.at[idx, 'Pago'] = "Abono Parcial ⏳"
             
             if cambios_fichas:
-                guardar_tabla("Fichas", df_fichas_sync)
+                guardar_tabla("Clientes", df_clientes_sync)
 
-            exito1 = guardar_dia("Clinica", fecha_str, df_clinica_editado)
+            exito1 = guardar_dia("Agenda", fecha_str, df_agenda_editado)
             exito2 = guardar_dia("Personal", fecha_str, df_personal)
             if exito1 and exito2:
-                st.success("¡Agenda guardada y Finanzas sincronizadas!")
-                time.sleep(1)
+                st.success("¡Agenda guardada y Expedientes sincronizados!")
                 st.rerun()
 
     with tab2:
@@ -970,7 +912,7 @@ else:
                     duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
                 with col_b2:
                     act_b = st.text_input("Actividad:")
-                    cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
+                    cat_b = st.selectbox("Categoría:", ["Tribunales", "Estudio de Caso", "Mascota", "Salud", "Ocio", "Trámites", "Reuniones", "General", "-"], key="cat_b")
                 with col_b3:
                     st.markdown("<br><br>", unsafe_allow_html=True)
                     btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
@@ -984,7 +926,7 @@ else:
                         
                         with st.spinner("Bloqueando..."):
                             for i in range(idx_inicio, idx_fin):
-                                if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                                if not str(df_personal.at[i, 'Actividad']).startswith("⚖️ Reunión"):
                                     df_personal.at[i, 'Actividad'] = act_b
                                     df_personal.at[i, 'Categoría'] = cat_b
                             guardar_dia("Personal", fecha_str, df_personal)
@@ -1005,7 +947,7 @@ else:
                     else:
                         with st.spinner("Bloqueando todo el día..."):
                             for i in range(len(df_personal)):
-                                if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                                if not str(df_personal.at[i, 'Actividad']).startswith("⚖️ Reunión"):
                                     df_personal.at[i, 'Actividad'] = motivo_dia
                                     df_personal.at[i, 'Categoría'] = "General"
                             guardar_dia("Personal", fecha_str, df_personal)
@@ -1016,7 +958,7 @@ else:
                 if btn_desbloquear_dia:
                     with st.spinner("Liberando el día..."):
                         for i in range(len(df_personal)):
-                            if not str(df_personal.at[i, 'Actividad']).startswith("🩺 Atendiendo"):
+                            if not str(df_personal.at[i, 'Actividad']).startswith("⚖️ Reunión"):
                                 df_personal.at[i, 'Actividad'] = ""
                                 df_personal.at[i, 'Categoría'] = "-"
                         guardar_dia("Personal", fecha_str, df_personal)
@@ -1030,7 +972,7 @@ else:
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
                 "Actividad": st.column_config.TextColumn("Actividad"),
-                "Categoría": st.column_config.SelectboxColumn("Categoría", options=["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"]),
+                "Categoría": st.column_config.SelectboxColumn("Categoría", options=["Tribunales", "Estudio de Caso", "Mascota", "Salud", "Ocio", "Trámites", "Reuniones", "General", "-"]),
             }
         )
         if btn_guardar_personal:
@@ -1040,89 +982,202 @@ else:
                 st.rerun()
 
     with tab3:
-        st.header("📁 Fichas Clínicas")
+        st.header("📁 Expedientes de Clientes")
         
-        with st.expander("➕ Crear Nuevo Paciente", expanded=False):
+        with st.expander("➕ Crear Nuevo Cliente", expanded=False):
+            st.markdown("Crea el expediente de un cliente sin tener que agendarlo en el calendario primero.")
             col_n1, col_n2 = st.columns([3, 1])
             with col_n1:
-                nuevo_nombre_paciente = st.text_input("Nombre completo del nuevo paciente:", key="input_nuevo_paciente")
+                nuevo_nombre_cliente = st.text_input("Nombre completo del nuevo cliente:", key="input_nuevo_cliente")
             with col_n2:
                 st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("✨ Crear Ficha", use_container_width=True, type="primary"):
-                    if nuevo_nombre_paciente.strip() == "":
+                if st.button("✨ Crear Expediente", use_container_width=True, type="primary"):
+                    if nuevo_nombre_cliente.strip() == "":
                         st.error("Escribe un nombre.")
                     else:
-                        nombre_limpio = nuevo_nombre_paciente.strip().title()
-                        df_fichas_temp = cargar_tabla("Fichas")
-                        if df_fichas_temp.empty or 'Paciente' not in df_fichas_temp.columns:
-                            df_fichas_temp = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección', 'Valor Pauta', 'Billetera'])
+                        nombre_limpio = nuevo_nombre_cliente.strip().title()
+                        df_clientes_temp = cargar_tabla("Clientes")
+                        if df_clientes_temp.empty or 'Cliente' not in df_clientes_temp.columns:
+                            df_clientes_temp = pd.DataFrame(columns=['Cliente', 'Teléfono', 'RUT / ID', 'Materia / Causa', 'Notas del Caso', 'Honorarios', 'Dirección', 'Valor Asesoría'])
                         
-                        if 'Valor Pauta' not in df_fichas_temp.columns: df_fichas_temp['Valor Pauta'] = ""
-                        if 'Billetera' not in df_fichas_temp.columns: df_fichas_temp['Billetera'] = 0.0
+                        if 'Valor Asesoría' not in df_clientes_temp.columns: df_clientes_temp['Valor Asesoría'] = ""
                         
-                        if nombre_limpio.upper() not in df_fichas_temp['Paciente'].astype(str).str.upper().values:
-                            nueva_fila = pd.DataFrame({'Paciente': [nombre_limpio], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""], 'Valor Pauta': [""], 'Billetera': [0.0]})
-                            df_fichas_temp = pd.concat([df_fichas_temp, nueva_fila], ignore_index=True)
-                            guardar_tabla("Fichas", df_fichas_temp)
+                        if nombre_limpio.upper() not in df_clientes_temp['Cliente'].astype(str).str.upper().values:
+                            nueva_fila = pd.DataFrame({'Cliente': [nombre_limpio], 'Teléfono': [""], 'RUT / ID': [""], 'Materia / Causa': [""], 'Notas del Caso': [""], 'Honorarios': [""], 'Dirección': [""], 'Valor Asesoría': [""]})
+                            df_clientes_temp = pd.concat([df_clientes_temp, nueva_fila], ignore_index=True)
+                            guardar_tabla("Clientes", df_clientes_temp)
                             st.success(f"✅ ¡{nombre_limpio} agregado al sistema!")
                             time.sleep(1)
                             st.rerun()
                         else:
-                            st.warning("⚠️ Este paciente ya existe.")
+                            st.warning("⚠️ Este cliente ya existe.")
         
-        lista_pacientes = obtener_lista_pacientes()
-        if not lista_pacientes: st.info("Agrega un paciente primero.")
+        lista_clientes = obtener_lista_clientes()
+        if not lista_clientes: st.info("Agrega un cliente primero.")
         else:
-            paciente_seleccionado = st.selectbox("🔍 Selecciona un paciente:", ["-- Selecciona --"] + lista_pacientes, key="selector_paciente_unico")
-            if paciente_seleccionado != "-- Selecciona --":
-                df_fichas = cargar_tabla("Fichas")
-                if df_fichas.empty or 'Paciente' not in df_fichas.columns: 
-                    df_fichas = pd.DataFrame(columns=['Paciente', 'Teléfono', 'Edad', 'Diagnóstico', 'Notas Clínicas', 'Valor Sesión', 'Dirección'])
-                if 'Valor Sesión' not in df_fichas.columns: df_fichas['Valor Sesión'] = "" 
-                if 'Dirección' not in df_fichas.columns: df_fichas['Dirección'] = "" 
-                if 'Valor Pauta' not in df_fichas.columns: df_fichas['Valor Pauta'] = "" 
-                if 'Billetera' not in df_fichas.columns: df_fichas['Billetera'] = 0.0
+            cliente_seleccionado = st.selectbox("🔍 Selecciona un cliente:", ["-- Selecciona --"] + lista_clientes, key="selector_cliente_unico")
+            if cliente_seleccionado != "-- Selecciona --":
+                df_clientes = cargar_tabla("Clientes")
+                if df_clientes.empty or 'Cliente' not in df_clientes.columns: 
+                    df_clientes = pd.DataFrame(columns=['Cliente', 'Teléfono', 'RUT / ID', 'Materia / Causa', 'Notas del Caso', 'Honorarios', 'Dirección'])
+                if 'Honorarios' not in df_clientes.columns: df_clientes['Honorarios'] = "" 
+                if 'Dirección' not in df_clientes.columns: df_clientes['Dirección'] = "" 
+                if 'Valor Asesoría' not in df_clientes.columns: df_clientes['Valor Asesoría'] = "" 
                 
-                if paciente_seleccionado not in df_fichas['Paciente'].values:
-                    nueva_fila = pd.DataFrame({'Paciente': [paciente_seleccionado], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [""], 'Valor Pauta': [""], 'Billetera': [0.0]})
-                    df_fichas = pd.concat([df_fichas, nueva_fila], ignore_index=True)
-                    guardar_tabla("Fichas", df_fichas)
+                if cliente_seleccionado not in df_clientes['Cliente'].values:
+                    nueva_fila = pd.DataFrame({'Cliente': [cliente_seleccionado], 'Teléfono': [""], 'RUT / ID': [""], 'Materia / Causa': [""], 'Notas del Caso': [""], 'Honorarios': [""], 'Dirección': [""], 'Valor Asesoría': [""]})
+                    df_clientes = pd.concat([df_clientes, nueva_fila], ignore_index=True)
+                    guardar_tabla("Clientes", df_clientes)
                     
-                idx_ficha = df_fichas.index[df_fichas['Paciente'] == paciente_seleccionado][0]
-                tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(paciente_seleccionado)
+                idx_ficha = df_clientes.index[df_clientes['Cliente'] == cliente_seleccionado][0]
+                tot_sesiones, tot_pagadas, tot_adeudadas = calcular_estadisticas_globales(cliente_seleccionado)
                 
-                billetera_paciente = parse_dinero(df_fichas.at[idx_ficha, 'Billetera'])
-                
-                col_met1, col_met2, col_met3, col_met4 = st.columns(4)
-                col_met1.metric("Atenciones Totales", tot_sesiones)
-                col_met2.metric("Pagadas ✅", tot_pagadas)
-                col_met3.metric("Adeudadas ❌", tot_adeudadas)
-                col_met4.metric("💳 Billetera a Favor", f"${billetera_paciente:,.0f}".replace(",", "."))
+                col_met1, col_met2, col_met3 = st.columns(3)
+                col_met1.metric("Causas y Reuniones", tot_sesiones)
+                col_met2.metric("Honorarios Pagados ✅", tot_pagadas)
+                col_met3.metric("Deuda ❌", tot_adeudadas)
 
                 st.markdown("---")
+                with st.expander("💻 Registrar Nueva Asesoría Online"):
+                    st.markdown("Registra una asesoría remota. Se incorporará como 'No pagada' al final del día seleccionado para su control y cobro.")
+                    
+                    mapa_asesorias_t3 = obtener_valor_asesoria_por_cliente()
+                    valor_actual_asesoria = mapa_asesorias_t3.get(cliente_seleccionado.upper(), 0.0)
+                    
+                    col_vp1, col_vp2, col_vp3 = st.columns(3)
+                    with col_vp1:
+                        fecha_nueva_asesoria = st.date_input("Fecha del servicio:", value=date.today())
+                    with col_vp2:
+                        st.info(f"💰 Valor a cobrar: ${valor_actual_asesoria:,.0f}".replace(",", "."))
+                    with col_vp3:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("🚀 Registrar Asesoría", use_container_width=True, type="primary"):
+                            if valor_actual_asesoria == 0:
+                                st.error("⚠️ Define el 'Valor Asesoría Online' en el Expediente de abajo y guárdalo primero.")
+                            else:
+                                fecha_pauta_str = fecha_nueva_asesoria.strftime("%Y-%m-%d")
+                                df_dia_pauta = cargar_datos_agenda(fecha_pauta_str)
+                                
+                                minuto_base = 0
+                                while f"23:{minuto_base:02d}" in df_dia_pauta['Hora'].values:
+                                    minuto_base += 1
+                                hora_final_pauta = f"23:{minuto_base:02d}"
+                                
+                                nueva_fila_pauta = pd.DataFrame([{
+                                    "Hora": hora_final_pauta, 
+                                    "Cliente": cliente_seleccionado, 
+                                    "Detalle / Motivo": "Asesoría Online 💻",
+                                    "Dirección": "-", 
+                                    "Minutos de Viaje": 0, 
+                                    "Hora de Salida": "-", 
+                                    "Ruta Maps": "-", 
+                                    "Alarma": "-",
+                                    "Estado": "Realizada 📩", 
+                                    "N° Reunión": "Asesoría", 
+                                    "Pago": "No pagada ❌",
+                                    "Recordatorio": "-"
+                                }])
+                                df_dia_pauta = pd.concat([df_dia_pauta, nueva_fila_pauta], ignore_index=True)
+                                
+                                with st.spinner("Registrando servicio en el sistema..."):
+                                    guardar_dia("Agenda", fecha_pauta_str, df_dia_pauta)
+                                    st.success("✅ ¡Asesoría registrada exitosamente!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                    
+                st.markdown("### 🗓️ Historial de Audiencias y Honorarios")
+                df_full_agenda_hist = cargar_tabla("Agenda")
+                if not df_full_agenda_hist.empty and 'Cliente' in df_full_agenda_hist.columns:
+                    df_filtro_pac = df_full_agenda_hist[(df_full_agenda_hist['Cliente'].astype(str).str.strip().str.upper() == cliente_seleccionado.upper()) & (~df_full_agenda_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+                    if not df_filtro_pac.empty:
+                        
+                        deuda_count = len(df_filtro_pac[df_filtro_pac['Pago'] == "No pagada ❌"])
+                        if deuda_count > 0:
+                            if st.button(f"✅ Marcar las {deuda_count} atenciones adeudadas como PAGADAS", type="secondary", use_container_width=True):
+                                with st.spinner(f"Procesando el pago de los {deuda_count} servicios..."):
+                                    df_update = cargar_tabla("Agenda")
+                                    mask_deuda = (df_update['Cliente'].astype(str).str.strip().str.upper() == cliente_seleccionado.upper()) & (df_update['Pago'] == "No pagada ❌")
+                                    df_update.loc[mask_deuda, 'Pago'] = "Pagada ✅"
+                                    guardar_tabla("Agenda", df_update)
+                                    st.success(f"✅ ¡Se han marcado {deuda_count} servicios como pagados!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                    
+                        df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago']].sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
+                        
+                        mapa_val_t3 = obtener_honorarios_por_cliente()
+                        
+                        def calcular_costo_visual(row):
+                            motivo = str(row['Detalle / Motivo']).strip()
+                            pac_norm = cliente_seleccionado.upper()
+                            if motivo == "Asesoría Online 💻":
+                                val = mapa_asesorias_t3.get(pac_norm, 0.0)
+                            else:
+                                val = mapa_val_t3.get(pac_norm, 0.0)
+                            return f"${val:,.0f}".replace(",", ".")
+                            
+                        df_mostrar['Honorarios Calculados'] = df_mostrar.apply(calcular_costo_visual, axis=1)
+                        
+                        st.markdown("💡 *Edita la columna 'Pago' individualmente y guarda para actualizar el estado contable.*")
+                        
+                        cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Honorarios Calculados', 'Pago']
+                        df_mostrar = df_mostrar[cols_order]
+                        
+                        df_editado_pagos = st.data_editor(
+                            df_mostrar,
+                            use_container_width=True,
+                            hide_index=True,
+                            key=f"editor_pagos_{cliente_seleccionado}",
+                            column_config={
+                                "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
+                                "Hora": st.column_config.TextColumn("Hora", disabled=True),
+                                "Detalle / Motivo": st.column_config.TextColumn("Servicio", disabled=True),
+                                "Honorarios Calculados": st.column_config.TextColumn("Valor ($)", disabled=True),
+                                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
+                            }
+                        )
+                        
+                        if st.button("💾 Guardar Cambios de Pagos", type="primary", use_container_width=True):
+                            with st.spinner("Actualizando historial en la base de datos..."):
+                                for index, row in df_editado_pagos.iterrows():
+                                    hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                                    mask = (df_full_agenda_hist['Fecha'] == row['Fecha']) & \
+                                           (df_full_agenda_hist['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_agenda_hist['Cliente'].astype(str).str.strip().str.upper() == cliente_seleccionado.upper())
+                                    
+                                    if not df_full_agenda_hist[mask].empty:
+                                        idx_to_update = df_full_agenda_hist[mask].index[0]
+                                        df_full_agenda_hist.at[idx_to_update, 'Pago'] = row['Pago']
+                                        
+                                guardar_tabla("Agenda", df_full_agenda_hist)
+                                st.success("✅ ¡Pagos actualizados!")
+                                time.sleep(1)
+                                st.rerun()
+                    else:
+                        st.info("No hay atenciones registradas en el calendario para este cliente.")
                 
-                with st.form(key=f"form_ficha_{paciente_seleccionado}"):
+                st.markdown("---")
+                
+                with st.form(key=f"form_ficha_{cliente_seleccionado}"):
                     col_f1, col_f2 = st.columns(2)
                     with col_f1:
-                        nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_fichas.at[idx_ficha, 'Teléfono']).replace('nan', ''))
-                        nueva_edad = st.text_input("🎂 Edad:", value=str(df_fichas.at[idx_ficha, 'Edad']).replace('nan', ''))
-                        nuevo_dir = st.text_input("📍 Dirección Base:", value=str(df_fichas.at[idx_ficha, 'Dirección']).replace('nan', ''), help="Se rellenará automáticamente en el calendario.")
-                        nueva_billetera = st.text_input("💳 Billetera (Saldo a Favor):", value=str(df_fichas.at[idx_ficha, 'Billetera']).replace('nan', ''), help="Puedes editar esto manualmente si te transfieren dinero sin agendar.")
+                        nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_clientes.at[idx_ficha, 'Teléfono']).replace('nan', ''))
+                        nuevo_rut = st.text_input("🪪 RUT / ID:", value=str(df_clientes.at[idx_ficha, 'RUT / ID']).replace('nan', ''))
+                        nuevo_dir = st.text_input("📍 Dirección Base / Tribunal:", value=str(df_clientes.at[idx_ficha, 'Dirección']).replace('nan', ''), help="Se rellenará automáticamente en el calendario.")
                     with col_f2:
-                        nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']).replace('nan', ''))
-                        nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
-                        nuevo_valor_pauta = st.text_input("💻 Valor Pauta Online (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Pauta']).replace('nan', ''))
+                        nuevo_diag = st.text_input("⚖️ Materia / Causa:", value=str(df_clientes.at[idx_ficha, 'Materia / Causa']).replace('nan', ''))
+                        nuevo_valor = st.text_input("💰 Honorarios x Hora/Reunión (CLP):", value=str(df_clientes.at[idx_ficha, 'Honorarios']).replace('nan', ''))
+                        nuevo_valor_pauta = st.text_input("💻 Valor Asesoría Online (CLP):", value=str(df_clientes.at[idx_ficha, 'Valor Asesoría']).replace('nan', ''))
                         st.markdown("<br>", unsafe_allow_html=True) 
                         
-                    nota_hoy = st.text_area("➕ Agregar evolución de hoy:", value="", height=100)
-                    nuevas_notas = st.text_area("✍️ Historial Clínico Completo:", value=str(df_fichas.at[idx_ficha, 'Notas Clínicas']).replace('nan', ''), height=200)
+                    nota_hoy = st.text_area("➕ Agregar avance de hoy:", value="", height=100)
+                    nuevas_notas = st.text_area("✍️ Notas del Caso / Historial:", value=str(df_clientes.at[idx_ficha, 'Notas del Caso']).replace('nan', ''), height=200)
                     
-                    if st.form_submit_button("💾 Guardar Ficha"):
-                        df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
-                        df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
-                        df_fichas.at[idx_ficha, 'Dirección'] = nuevo_dir
-                        df_fichas.at[idx_ficha, 'Billetera'] = parse_dinero(nueva_billetera)
-                        df_fichas.at[idx_ficha, 'Diagnóstico'] = nuevo_diag
+                    if st.form_submit_button("💾 Guardar Expediente"):
+                        df_clientes.at[idx_ficha, 'Teléfono'] = nuevo_tel
+                        df_clientes.at[idx_ficha, 'RUT / ID'] = nuevo_rut
+                        df_clientes.at[idx_ficha, 'Dirección'] = nuevo_dir
+                        df_clientes.at[idx_ficha, 'Materia / Causa'] = nuevo_diag
                         
                         texto_final = nuevas_notas
                         if nota_hoy.strip() != "":
@@ -1132,62 +1187,13 @@ else:
                             else:
                                 texto_final = f"📅 [{fecha_actual}] - {nota_hoy.strip()}"
                                 
-                        df_fichas.at[idx_ficha, 'Notas Clínicas'] = texto_final
-                        df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
-                        df_fichas.at[idx_ficha, 'Valor Pauta'] = nuevo_valor_pauta
-                        guardar_tabla("Fichas", df_fichas)
-                        st.success("¡Ficha actualizada!")
+                        df_clientes.at[idx_ficha, 'Notas del Caso'] = texto_final
+                        df_clientes.at[idx_ficha, 'Honorarios'] = nuevo_valor
+                        df_clientes.at[idx_ficha, 'Valor Asesoría'] = nuevo_valor_pauta
+                        guardar_tabla("Clientes", df_clientes)
+                        st.success("¡Expediente actualizado!")
                         time.sleep(1)
                         st.rerun()
-
-                st.markdown("---")
-                with st.expander("💻 Vender Nueva Pauta Online"):
-                    st.markdown("Registra una pauta vendida. Se incorporará como 'No pagada' al final del día seleccionado para su control y cobro.")
-                    
-                    mapa_pau_t3 = obtener_valor_pauta_por_paciente()
-                    valor_actual_pauta = mapa_pau_t3.get(paciente_seleccionado.upper(), 0.0)
-                    
-                    col_vp1, col_vp2, col_vp3 = st.columns(3)
-                    with col_vp1:
-                        fecha_nueva_pauta = st.date_input("Fecha de venta:", value=date.today())
-                    with col_vp2:
-                        st.info(f"💰 Valor a cobrar: ${valor_actual_pauta:,.0f}".replace(",", "."))
-                    with col_vp3:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.button("🚀 Registrar Pauta", use_container_width=True, type="primary"):
-                            if valor_actual_pauta == 0:
-                                st.error("⚠️ Define el 'Valor Pauta Online' en la Ficha de abajo y guárdalo primero.")
-                            else:
-                                fecha_pauta_str = fecha_nueva_pauta.strftime("%Y-%m-%d")
-                                df_dia_pauta = cargar_datos_clinica(fecha_pauta_str)
-                                
-                                minuto_base = 0
-                                while f"23:{minuto_base:02d}" in df_dia_pauta['Hora'].values:
-                                    minuto_base += 1
-                                hora_final_pauta = f"23:{minuto_base:02d}"
-                                
-                                nueva_fila_pauta = pd.DataFrame([{
-                                    "Hora": hora_final_pauta, 
-                                    "Paciente": paciente_seleccionado, 
-                                    "Detalle / Motivo": "Pauta Online 💻",
-                                    "Dirección": "-", 
-                                    "Minutos de Viaje": 0, 
-                                    "Hora de Salida": "-", 
-                                    "Ruta Maps": "-", 
-                                    "Alarma": "-",
-                                    "Estado": "Entregada 📩", 
-                                    "N° Sesión": "Pauta", 
-                                    "Pago": "No pagada ❌",
-                                    "Abono ($)": "",
-                                    "Recordatorio": "-"
-                                }])
-                                df_dia_pauta = pd.concat([df_dia_pauta, nueva_fila_pauta], ignore_index=True)
-                                
-                                with st.spinner("Registrando venta en el sistema..."):
-                                    guardar_dia("Clinica", fecha_pauta_str, df_dia_pauta)
-                                    st.success("✅ ¡Pauta registrada exitosamente!")
-                                    time.sleep(1.5)
-                                    st.rerun()
 
     with tab4:
         st.header("📊 Dashboard Financiero")
@@ -1207,61 +1213,52 @@ else:
         
         stats = calcular_dashboard_mensual(mes_dashboard)
         
-        # Calcular Billeteras Activas Globales
-        df_fichas_billetera = cargar_tabla("Fichas")
-        if not df_fichas_billetera.empty and 'Billetera' in df_fichas_billetera.columns:
-            total_billetera_global = pd.to_numeric(df_fichas_billetera['Billetera'], errors='coerce').fillna(0).sum()
-        else:
-            total_billetera_global = 0.0
-        
         st.markdown(f"### 📊 Resultados de {mes_seleccionado} {año_seleccionado}")
-        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
-        col_d1.metric("Atenciones totales", stats["total_sesiones"])
-        col_d2.metric("💰 Ingresos Mes", f"${stats['ingresos']:,.0f}".replace(",", "."))
+        col_d1, col_d2, col_d3 = st.columns(3)
+        col_d1.metric("Servicios Legales Totales", stats["total_sesiones"])
+        col_d2.metric("💰 Ingresos Pagados", f"${stats['ingresos']:,.0f}".replace(",", "."))
         col_d3.metric("⏳ Deuda Pendiente", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
-        col_d4.metric("💳 Billeteras a Favor", f"${total_billetera_global:,.0f}".replace(",", "."), help="Dinero adelantado por pacientes aún no consumido")
         
         st.markdown("---")
         
         st.markdown("#### 🔍 Desglose de Contabilidad")
         col_des1, col_des2 = st.columns(2)
         with col_des1:
-            st.success(f"**Ingresos por Sesiones Clínicas:** ${stats['ingresos_sesiones']:,.0f}".replace(",", "."))
-            st.success(f"**Ingresos por Pautas Online:** ${stats['ingresos_pautas']:,.0f}".replace(",", "."))
+            st.success(f"**Ingresos por Reuniones/Audiencias:** ${stats['ingresos_sesiones']:,.0f}".replace(",", "."))
+            st.success(f"**Ingresos por Asesorías Online:** ${stats['ingresos_pautas']:,.0f}".replace(",", "."))
         with col_des2:
-            st.warning(f"**Deuda por Sesiones Clínicas:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
-            st.warning(f"**Deuda por Pautas Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
+            st.warning(f"**Deuda por Reuniones/Audiencias:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
+            st.warning(f"**Deuda por Asesorías Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
 
         st.markdown("---")
         
-        st.markdown(f"### 📋 Detalle de Atenciones - {mes_seleccionado} {año_seleccionado}")
-        df_completo_dash = cargar_tabla("Clinica")
+        st.markdown(f"### 📋 Detalle de Actividades - {mes_seleccionado} {año_seleccionado}")
+        df_completo_dash = cargar_tabla("Agenda")
         if not df_completo_dash.empty and 'Fecha' in df_completo_dash.columns:
             prefijo_mes_sel = mes_dashboard.strftime("%Y-%m")
             df_mes_det = df_completo_dash[df_completo_dash['Fecha'].astype(str).str.startswith(prefijo_mes_sel)].copy()
             df_mes_det = df_mes_det[~df_mes_det['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
-            df_mes_det = df_mes_det[(df_mes_det['Paciente'].astype(str).str.strip() != "") & (df_mes_det['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+            df_mes_det = df_mes_det[(df_mes_det['Cliente'].astype(str).str.strip() != "") & (df_mes_det['Cliente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
             
             if not df_mes_det.empty:
-                mapa_val_dash = obtener_valor_por_paciente()
-                mapa_pau_dash = obtener_valor_pauta_por_paciente()
-                df_mes_det['Paciente_norm'] = df_mes_det['Paciente'].astype(str).str.strip().str.upper()
+                mapa_val_dash = obtener_honorarios_por_cliente()
+                mapa_pau_dash = obtener_valor_asesoria_por_cliente()
+                df_mes_det['Cliente_norm'] = df_mes_det['Cliente'].astype(str).str.strip().str.upper()
                 
                 df_mes_det['Hora'] = df_mes_det['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
-                if 'Abono ($)' not in df_mes_det.columns: df_mes_det['Abono ($)'] = ""
                 
                 def asignar_valor_str(row):
-                    if str(row['Detalle / Motivo']).strip() == "Pauta Online 💻":
-                        val = mapa_pau_dash.get(row['Paciente_norm'], 0.0)
+                    if str(row['Detalle / Motivo']).strip() == "Asesoría Online 💻":
+                        val = mapa_pau_dash.get(row['Cliente_norm'], 0.0)
                     else:
-                        val = mapa_val_dash.get(row['Paciente_norm'], 0.0)
+                        val = mapa_val_dash.get(row['Cliente_norm'], 0.0)
                     return f"${val:,.0f}".replace(",", ".")
                 
-                df_mes_det['Costo Sesión'] = df_mes_det.apply(asignar_valor_str, axis=1)
+                df_mes_det['Costo'] = df_mes_det.apply(asignar_valor_str, axis=1)
                 
-                df_mostrar_dash = df_mes_det[['Fecha', 'Hora', 'Paciente', 'Detalle / Motivo', 'Costo Sesión', 'Pago', 'Abono ($)']].sort_values(by=['Fecha', 'Hora'])
+                df_mostrar_dash = df_mes_det[['Fecha', 'Hora', 'Cliente', 'Detalle / Motivo', 'Costo', 'Pago']].sort_values(by=['Fecha', 'Hora'])
                 
-                st.markdown("💡 *Si editas el Pago o Abono aquí, se recalculará automáticamente tu contabilidad al guardar.*")
+                st.markdown("💡 *Puedes editar el **Pago** y el **Valor**. Si cambias el valor aquí, el robot viajará automáticamente al Expediente del cliente para guardar ese precio para siempre y arreglar los $0.*")
                 
                 df_editado_dash = st.data_editor(
                     df_mostrar_dash,
@@ -1271,38 +1268,49 @@ else:
                     column_config={
                         "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
                         "Hora": st.column_config.TextColumn("Hora", disabled=True),
-                        "Paciente": st.column_config.TextColumn("Paciente", disabled=True),
-                        "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
-                        "Costo Sesión": st.column_config.TextColumn("Valor Base ($)", disabled=True), 
-                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                        "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)")
+                        "Cliente": st.column_config.TextColumn("Cliente", disabled=True),
+                        "Detalle / Motivo": st.column_config.TextColumn("Servicio", disabled=True),
+                        "Costo": st.column_config.TextColumn("Honorarios ($)"), 
+                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "-"])
                     }
                 )
                 
                 if st.button("💾 Guardar Cambios del Mes", type="primary", use_container_width=True):
-                    with st.spinner("Guardando pagos..."):
-                        df_full_clinica_dash = cargar_tabla("Clinica")
-                        if 'Abono ($)' not in df_full_clinica_dash.columns: df_full_clinica_dash['Abono ($)'] = ""
+                    with st.spinner("Guardando pagos y actualizando expedientes..."):
+                        df_full_agenda_dash = cargar_tabla("Agenda")
+                        df_full_clientes_dash = cargar_tabla("Clientes")
                         
                         for index, row in df_editado_dash.iterrows():
                             hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
-                            mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
-                                           (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
-                                           (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
+                            mask_agenda = (df_full_agenda_dash['Fecha'] == row['Fecha']) & \
+                                           (df_full_agenda_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_agenda_dash['Cliente'].astype(str).str.strip().str.upper() == str(row['Cliente']).strip().upper())
                                            
-                            if not df_full_clinica_dash[mask_clinica].empty:
-                                idx_clin = df_full_clinica_dash[mask_clinica].index[0]
-                                df_full_clinica_dash.at[idx_clin, 'Pago'] = row['Pago']
-                                df_full_clinica_dash.at[idx_clin, 'Abono ($)'] = row['Abono ($)']
+                            if not df_full_agenda_dash[mask_agenda].empty:
+                                idx_clin = df_full_agenda_dash[mask_agenda].index[0]
+                                df_full_agenda_dash.at[idx_clin, 'Pago'] = row['Pago']
+                            
+                            nuevo_costo = str(row['Costo']).replace("$", "").replace(".", "").replace(",", "").strip()
+                            pac_upper = str(row['Cliente']).strip().upper()
+                            es_pauta = (str(row['Detalle / Motivo']).strip() == "Asesoría Online 💻")
+                            
+                            mask_ficha = (df_full_clientes_dash['Cliente'].astype(str).str.strip().str.upper() == pac_upper)
+                            if not df_full_clientes_dash[mask_ficha].empty:
+                                idx_fich = df_full_clientes_dash[mask_ficha].index[0]
+                                if es_pauta:
+                                    df_full_clientes_dash.at[idx_fich, 'Valor Asesoría'] = nuevo_costo
+                                else:
+                                    df_full_clientes_dash.at[idx_fich, 'Honorarios'] = nuevo_costo
 
-                        guardar_tabla("Clinica", df_full_clinica_dash)
+                        guardar_tabla("Agenda", df_full_agenda_dash)
+                        guardar_tabla("Clientes", df_full_clientes_dash)
                         st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
                         time.sleep(1.5)
                         st.rerun()
             else:
-                st.info(f"No hay atenciones registradas para {mes_seleccionado} {año_seleccionado}.")
+                st.info(f"No hay actividades registradas para {mes_seleccionado} {año_seleccionado}.")
         else:
-            st.info("No hay datos en la clínica aún.")
+            st.info("No hay datos en el sistema aún.")
 
         st.markdown("---")
         
@@ -1314,17 +1322,19 @@ else:
             if stats_m["total_sesiones"] > 0 or stats_m["ingresos"] > 0 or stats_m["por_cobrar"] > 0:
                 datos_anuales.append({
                     "Mes": meses_nombres[m-1],
-                    "Atenciones": stats_m["total_sesiones"],
-                    "Ingresos Pagados": stats_m['ingresos'],
+                    "Reuniones/Audiencias": stats_m["total_sesiones"],
+                    "Honorarios Pagados": stats_m['ingresos'],
                     "Deuda Pendiente": stats_m['por_cobrar'],
                     "Total Mensual": stats_m['ingresos'] + stats_m['por_cobrar']
                 })
         
         if datos_anuales:
             df_anual = pd.DataFrame(datos_anuales)
+            
             df_anual_visual = df_anual.copy()
-            for col in ["Ingresos Pagados", "Deuda Pendiente", "Total Mensual"]:
+            for col in ["Honorarios Pagados", "Deuda Pendiente", "Total Mensual"]:
                 df_anual_visual[col] = df_anual_visual[col].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+                
             st.dataframe(df_anual_visual, use_container_width=True, hide_index=True)
         else:
             st.info(f"No hay movimientos financieros registrados en el sistema durante {año_seleccionado}.")
