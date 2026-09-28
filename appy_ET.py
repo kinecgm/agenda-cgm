@@ -61,7 +61,7 @@ def conectar_bd():
     cliente = gspread.authorize(creds)
     
     # ENLACE ACTUALIZADO A LA PLANILLA DE LA PROFESORA
-    doc_ingles = cliente.open_by_url("robot-agenda-kine-cgm@agenda-kine-cgm.iam.gserviceaccount.com")
+    doc_ingles = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1tdS-Qzi66Q9oAtBLoFrtY-Ls0bwsSPPAwkIoZ8uimvI/edit?gid=0#gid=0")
     
     return doc_ingles, creds
 
