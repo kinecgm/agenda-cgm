@@ -61,7 +61,7 @@ def conectar_bd():
     cliente = gspread.authorize(creds)
     
     # robot-agenda-kine-cgm@agenda-kine-cgm.iam.gserviceaccount.com:
-    doc_ingles = cliente.open_by_url("https://docs.google.com/spreadsheets/d/TU_NUEVO_ENLACE_AQUI/edit")
+    doc_ingles = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1tdS-Qzi66Q9oAtBLoFrtY-Ls0bwsSPPAwKloZ8uimvl/edit")
     
     return doc_ingles, creds
 
