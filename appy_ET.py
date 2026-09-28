@@ -60,7 +60,7 @@ def conectar_bd():
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
     
-    # 🔴 PEGA AQUÍ EL ENLACE DE LA NUEVA PLANILLA EN BLANCO PARA LA PROFESORA:
+    # robot-agenda-kine-cgm@agenda-kine-cgm.iam.gserviceaccount.com:
     doc_ingles = cliente.open_by_url("https://docs.google.com/spreadsheets/d/TU_NUEVO_ENLACE_AQUI/edit")
     
     return doc_ingles, creds
