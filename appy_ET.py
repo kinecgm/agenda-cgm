@@ -61,7 +61,7 @@ def conectar_bd():
     cliente = gspread.authorize(creds)
     
     # ENLACE ACTUALIZADO A LA PLANILLA DE LA PROFESORA
-    doc_ingles = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1tdS-Qzi66Q9oAtBLoFrtY-Ls0bwsSPPAwKloZ8uimvl/edit")
+    doc_ingles = cliente.open_by_url("PEGA_TU_ENLACE_AQUI")
     
     return doc_ingles, creds
 
