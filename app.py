@@ -93,20 +93,17 @@ def guardar_tabla(nombre_hoja, df):
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
-# LÓGICA REPARADA: "3 millones" bug arreglado y lectura de miles (ej: 30 = 30000)
+# --- MAGIA CONTABLE: LECTURA DE MILES Y REPARACIÓN DEL BUG DE LOS MILLONES ---
 def parse_dinero(val):
     try:
-        if str(val).strip() in ["", "nan", "NaN"]: return 0.0
-        if isinstance(val, (int, float)):
-            v = float(val)
-        else:
-            s = str(val).replace('$', '').strip()
-            # Si Google Sheets lo mandó con decimal flotante (ej: 300000.0), lo removemos antes de limpiar los puntos
-            if s.endswith('.0'): s = s[:-2]
-            s = s.replace('.', '').replace(',', '')
-            v = float(s)
-            
-        # MAGIA DE MILES: Si escribes un número menor a 1000, asume que hablas en miles
+        if pd.isna(val): return 0.0
+        s = str(val).strip()
+        if s in ["", "nan", "NaN", "-"]: return 0.0
+        s = s.replace('$', '')
+        if s.endswith('.0'): s = s[:-2] # Elimina el ".0" fantasma
+        s = s.replace('.', '').replace(',', '')
+        v = float(s)
+        # Si el número es menor a 1000, el robot asume que hablas en miles de pesos.
         if 0 < v < 1000: return v * 1000
         return v
     except:
@@ -195,7 +192,7 @@ else:
         guardar_tabla(tipo, df_final)
         return True 
 
-    # --- FUNCIONES ---
+    # --- FUNCIONES BASE ---
     def cargar_datos_clinica(fecha):
         df_completo = cargar_tabla("Clinica")
         if not df_completo.empty and 'Fecha' in df_completo.columns:
@@ -262,7 +259,7 @@ else:
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
         df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
         tot_sesiones = len(df_pac)
-        pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Pagada con Billetera ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅"])])
+        pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅"])])
         adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
         return tot_sesiones, pagadas, adeudadas
 
@@ -341,8 +338,8 @@ else:
             elif pago_estado == "Pagada (Excedente) ✅":
                 ingreso_hoy = abono_val
                 pagada_count = 1
-            elif pago_estado in ["Pagada con Billetera ✅", "Saldada con Billetera ✅"]:
-                ingreso_hoy = abono_val # Respeta si hubo un abono cash parcial en su momento
+            elif pago_estado == "Saldada con Billetera ✅":
+                ingreso_hoy = abono_val # Solo suma si hubo cash en ese momento
                 pagada_count = 1
             elif pago_estado == "Abono Parcial ⏳":
                 ingreso_hoy = abono_val
@@ -382,6 +379,67 @@ else:
         fecha_hora_actual = pd.to_datetime(f"{fecha_actual} {hora_actual}")
         contador = len(df_hist[df_hist['FechaHora'] <= fecha_hora_actual])
         return str(contador if contador > 0 else 1)
+
+    # --- EL CEREBRO DE LA BILLETERA (BARRIDO AUTOMÁTICO GOTA A GOTA) ---
+    def ejecutar_barrido_billeteras():
+        df_fichas = cargar_tabla("Fichas")
+        df_clinica = cargar_tabla("Clinica")
+        if df_fichas.empty or df_clinica.empty or 'Billetera' not in df_fichas.columns: return False
+        
+        mapa_val = obtener_valor_por_paciente()
+        mapa_pau = obtener_valor_pauta_por_paciente()
+        hubo_cambios = False
+        
+        df_fichas['Billetera'] = pd.to_numeric(df_fichas['Billetera'], errors='coerce').fillna(0.0)
+        
+        # REGLA DE TIEMPO: Creamos una lectura de fechas para saber qué es futuro
+        df_clinica['Fecha_Obj'] = pd.to_datetime(df_clinica['Fecha'], errors='coerce').dt.date
+        hoy = date.today()
+        
+        for idx_f, row_f in df_fichas.iterrows():
+            billetera = float(row_f['Billetera'])
+            if billetera > 0:
+                paciente = str(row_f['Paciente']).strip().upper()
+                
+                # MAGIA GOTA A GOTA: Solo miramos deudas de HOY hacia atrás. El futuro no se toca.
+                mask_deudas = (df_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente) & \
+                              (df_clinica['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳", "-", "Descontar Billetera 💳"])) & \
+                              (df_clinica['Fecha_Obj'] <= hoy)
+                
+                if mask_deudas.any():
+                    idx_deudas = df_clinica[mask_deudas].sort_values(by=['Fecha', 'Hora']).index
+                    for idxd in idx_deudas:
+                        if billetera <= 0: break
+                        motivo = str(df_clinica.at[idxd, 'Detalle / Motivo']).strip()
+                        if motivo in ["Personal / Trámite 🛑", "Gimnasio 🏋️"]: continue
+                        
+                        val_total = mapa_pau.get(paciente, 0.0) if motivo == "Pauta Online 💻" else mapa_val.get(paciente, 0.0)
+                        if val_total <= 0: continue 
+                        
+                        abono_previo = parse_dinero(df_clinica.at[idxd, 'Abono ($)'])
+                        deuda_actual = val_total - abono_previo
+                        
+                        if deuda_actual > 0:
+                            if billetera >= deuda_actual:
+                                billetera -= deuda_actual
+                                df_clinica.at[idxd, 'Pago'] = "Saldada con Billetera ✅"
+                                hubo_cambios = True
+                            else:
+                                nuevo_abono = abono_previo + billetera
+                                df_clinica.at[idxd, 'Abono ($)'] = str(int(nuevo_abono))
+                                df_clinica.at[idxd, 'Pago'] = "Abono Parcial ⏳"
+                                billetera = 0
+                                hubo_cambios = True
+                    
+                    df_fichas.at[idx_f, 'Billetera'] = billetera
+                    
+        if hubo_cambios:
+            if 'Fecha_Obj' in df_clinica.columns:
+                df_clinica = df_clinica.drop(columns=['Fecha_Obj'])
+            guardar_tabla("Clinica", df_clinica)
+            guardar_tabla("Fichas", df_fichas)
+            return True
+        return False
 
     # --- CARGA DE DATOS ---
     df_clinica = cargar_datos_clinica(fecha_str)
@@ -641,6 +699,8 @@ else:
                                     df_clinica.at[idx_ex, 'Pago'] = "No pagada ❌"
                                     df_clinica.at[idx_ex, 'N° Sesión'] = ""
                                     guardar_dia("Clinica", fecha_str, df_clinica)
+                                    if ejecutar_barrido_billeteras():
+                                        st.toast("⛽ ¡El Tanque cubrió esta sesión automáticamente!")
                                     st.success(f"✅ ¡{pac_ex} agendado a las {hora_ex}!")
                                     time.sleep(1)
                                     st.rerun()
@@ -719,6 +779,9 @@ else:
                                     nueva_fila = pd.DataFrame({'Paciente': [m_paciente.strip().title()], 'Teléfono': [""], 'Edad': [""], 'Diagnóstico': [""], 'Notas Clínicas': [""], 'Valor Sesión': [""], 'Dirección': [m_direccion.strip()], 'Valor Pauta': [""], 'Billetera': [0.0]})
                                     df_fichas_sync = pd.concat([df_fichas_sync, nueva_fila], ignore_index=True)
                                     guardar_tabla("Fichas", df_fichas_sync)
+                            
+                            if ejecutar_barrido_billeteras():
+                                st.toast("⛽ ¡El Tanque cubrió las sesiones agendadas automáticamente!")
 
                         if sesiones_logradas == m_sesiones: st.success("✅ ¡Agendado!")
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
@@ -765,6 +828,8 @@ else:
                                     df_clinica.at[idx_origen, 'Pago'] = "-"
                                     df_clinica.at[idx_origen, 'N° Sesión'] = ""
                                     guardar_dia("Clinica", fecha_str, df_clinica)
+                                if ejecutar_barrido_billeteras():
+                                    st.toast("⛽ ¡El Tanque cubrió la reagendación automáticamente!")
                                 if exito_r:
                                     st.success("✅ ¡Listo!")
                                     time.sleep(1)
@@ -880,7 +945,7 @@ else:
                 "Recordatorio": st.column_config.LinkColumn("📲 WhatsApp", disabled=True, display_text="Enviar"),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
-                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Pagada con Billetera ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
                 "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)")
             }
         )
@@ -928,67 +993,29 @@ else:
                     val_ses = mapa_pau.get(pac.upper(), 0.0) if motivo == "Pauta Online 💻" else mapa_val.get(pac.upper(), 0.0)
                     billetera_act = float(df_fichas_sync.at[idx_f, 'Billetera'])
                     
-                    # Evaluamos los pagos manuales hechos en el día de hoy
-                    if pago_est in ["No pagada ❌", "-", "Descontar Billetera 💳"]:
-                        if abono_val > 0:
-                            if abono_val > val_ses:
-                                excedente = abono_val - val_ses
-                                df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act + excedente
-                                df_clinica_editado.at[idx, 'Pago'] = "Pagada (Excedente) ✅"
-                                cambios_fichas = True
-                            elif abono_val == val_ses:
-                                df_clinica_editado.at[idx, 'Pago'] = "Pagada ✅"
-                            else:
-                                faltante = val_ses - abono_val
-                                if billetera_act >= faltante:
-                                    df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act - faltante
-                                    df_clinica_editado.at[idx, 'Pago'] = "Saldada con Billetera ✅" 
-                                    cambios_fichas = True
-                                else:
-                                    df_clinica_editado.at[idx, 'Pago'] = "Abono Parcial ⏳"
-                        else:
-                            if val_ses > 0 and billetera_act >= val_ses:
-                                df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act - val_ses
-                                df_clinica_editado.at[idx, 'Pago'] = "Pagada con Billetera ✅"
-                                cambios_fichas = True
-                            elif pago_est == "Descontar Billetera 💳":
-                                st.error(f"⚠️ {pac} solo tiene ${billetera_act:,.0f} en su tanque. No alcanza para pagar.")
-                                df_clinica_editado.at[idx, 'Pago'] = "No pagada ❌"
+                    # Evaluamos los ingresos manuales del día solo si agrega plata al tanque
+                    if abono_val > val_ses and val_ses > 0 and pago_est not in ["Pagada (Excedente) ✅"]:
+                        excedente = abono_val - val_ses
+                        df_fichas_sync.at[idx_f, 'Billetera'] = billetera_act + excedente
+                        df_clinica_editado.at[idx, 'Pago'] = "Pagada (Excedente) ✅"
+                        cambios_fichas = True
+                        st.toast(f"⛽ Se guardaron ${excedente:,.0f} en el tanque de {pac}")
+                    elif abono_val == val_ses and val_ses > 0 and pago_est not in ["Pagada ✅", "Pagada (Excedente) ✅", "Saldada con Billetera ✅"]:
+                        df_clinica_editado.at[idx, 'Pago'] = "Pagada ✅"
+                    elif 0 < abono_val < val_ses and pago_est not in ["Abono Parcial ⏳", "Saldada con Billetera ✅"]:
+                        df_clinica_editado.at[idx, 'Pago'] = "Abono Parcial ⏳"
             
-            # Guardamos la agenda del día primero para que el barrido posterior la incluya
-            exito1 = guardar_dia("Clinica", fecha_str, df_clinica_editado)
-            
-            # EL TANQUE MÁGICO: Barrido histórico para pagar deudas pasadas automáticamente
-            if exito1:
-                df_full_sweep = cargar_tabla("Clinica")
-                cambios_sweep = False
-                for idx_f_sweep, row_f in df_fichas_sync.iterrows():
-                    b_act = float(row_f['Billetera'])
-                    if b_act > 0:
-                        pac_sweep = str(row_f['Paciente']).strip().upper()
-                        mask_d = (df_full_sweep['Paciente'].astype(str).str.strip().str.upper() == pac_sweep) & \
-                                 (df_full_sweep['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"]))
-                        if mask_d.any():
-                            idx_deudas = df_full_sweep[mask_d].sort_values(by=['Fecha', 'Hora']).index
-                            for idxd in idx_deudas:
-                                if b_act <= 0: break
-                                mot_d = str(df_full_sweep.at[idxd, 'Detalle / Motivo']).strip()
-                                v_ses = mapa_pau.get(pac_sweep, 0.0) if mot_d == "Pauta Online 💻" else mapa_val.get(pac_sweep, 0.0)
-                                ab_prev = parse_dinero(df_full_sweep.at[idxd, 'Abono ($)'])
-                                deuda_r = v_ses - ab_prev
-                                if deuda_r > 0 and b_act >= deuda_r:
-                                    b_act -= deuda_r
-                                    df_full_sweep.at[idxd, 'Pago'] = "Saldada con Billetera ✅"
-                                    # No tocamos el abono para no arruinar el balance histórico de ese mes
-                                    cambios_sweep = True
-                            df_fichas_sync.at[idx_f_sweep, 'Billetera'] = b_act
-                
+            if cambios_fichas:
                 guardar_tabla("Fichas", df_fichas_sync)
-                if cambios_sweep:
-                    guardar_tabla("Clinica", df_full_sweep)
-                    st.toast("⛽ ¡El Tanque cubrió sesiones adeudadas del pasado automáticamente!")
 
+            exito1 = guardar_dia("Clinica", fecha_str, df_clinica_editado)
             exito2 = guardar_dia("Personal", fecha_str, df_personal)
+            
+            if exito1:
+                # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
+                if ejecutar_barrido_billeteras():
+                    st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
+                    
             if exito1 and exito2:
                 st.success("¡Agenda guardada y Tanque de Bencina sincronizado!")
                 time.sleep(1.5)
@@ -1142,13 +1169,97 @@ else:
 
                 st.markdown("---")
                 
+                # --- NUEVO: HISTORIAL DE ATENCIONES Y PAGOS ---
+                st.markdown("### 🗓️ Historial de Atenciones y Pagos")
+                df_full_clinica_hist = cargar_tabla("Clinica")
+                if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
+                    df_filtro_pac = df_full_clinica_hist[(df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (~df_full_clinica_hist['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+                    if not df_filtro_pac.empty:
+                        
+                        deuda_count = len(df_filtro_pac[df_filtro_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
+                        if deuda_count > 0:
+                            if st.button(f"✅ Marcar las {deuda_count} atenciones adeudadas como PAGADAS", type="secondary", use_container_width=True):
+                                with st.spinner(f"Procesando el pago de los {deuda_count} servicios..."):
+                                    df_update = cargar_tabla("Clinica")
+                                    mask_deuda = (df_update['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (df_update['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"]))
+                                    df_update.loc[mask_deuda, 'Pago'] = "Pagada ✅"
+                                    guardar_tabla("Clinica", df_update)
+                                    st.success(f"✅ ¡Se han marcado {deuda_count} servicios como pagados!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                    
+                        df_mostrar = df_filtro_pac[['Fecha', 'Hora', 'Detalle / Motivo', 'Pago', 'Abono ($)']].copy()
+                        df_mostrar = df_mostrar.sort_values(by=['Fecha', 'Hora'], ascending=[False, False]).reset_index(drop=True)
+                        
+                        mapa_val_t3 = obtener_valor_por_paciente()
+                        mapa_pau_t3 = obtener_valor_pauta_por_paciente()
+                        
+                        def calcular_costo_visual(row):
+                            motivo = str(row['Detalle / Motivo']).strip()
+                            pac_norm = paciente_seleccionado.upper()
+                            if motivo == "Pauta Online 💻":
+                                val = mapa_pau_t3.get(pac_norm, 0.0)
+                            else:
+                                val = mapa_val_t3.get(pac_norm, 0.0)
+                            return f"${val:,.0f}".replace(",", ".")
+                            
+                        df_mostrar['Valor ($)'] = df_mostrar.apply(calcular_costo_visual, axis=1)
+                        
+                        st.markdown("💡 *Edita la columna 'Pago' o 'Abono ($)' individualmente y guarda para actualizar atenciones pasadas.*")
+                        
+                        cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Valor ($)', 'Pago', 'Abono ($)']
+                        df_mostrar = df_mostrar[cols_order]
+                        
+                        df_editado_pagos = st.data_editor(
+                            df_mostrar,
+                            use_container_width=True,
+                            hide_index=True,
+                            key=f"editor_pagos_{paciente_seleccionado}",
+                            column_config={
+                                "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
+                                "Hora": st.column_config.TextColumn("Hora", disabled=True),
+                                "Detalle / Motivo": st.column_config.TextColumn("Servicio", disabled=True),
+                                "Valor ($)": st.column_config.TextColumn("Valor ($)", disabled=True),
+                                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)")
+                            }
+                        )
+                        
+                        if st.button("💾 Guardar Cambios de Pagos", type="primary", use_container_width=True):
+                            with st.spinner("Actualizando historial en la base de datos..."):
+                                for index, row in df_editado_pagos.iterrows():
+                                    hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                                    mask = (df_full_clinica_hist['Fecha'] == row['Fecha']) & \
+                                           (df_full_clinica_hist['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_clinica_hist['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper())
+                                    
+                                    if not df_full_clinica_hist[mask].empty:
+                                        idx_to_update = df_full_clinica_hist[mask].index[0]
+                                        df_full_clinica_hist.at[idx_to_update, 'Pago'] = row['Pago']
+                                        
+                                        val_ab_hist = parse_dinero(row['Abono ($)'])
+                                        df_full_clinica_hist.at[idx_to_update, 'Abono ($)'] = str(int(val_ab_hist)) if val_ab_hist > 0 else ""
+                                        
+                                guardar_tabla("Clinica", df_full_clinica_hist)
+                                
+                                if ejecutar_barrido_billeteras():
+                                    st.toast("⛽ ¡El Tanque Mágico se activó tras tus ediciones!")
+                                    
+                                st.success("✅ ¡Historial de pagos actualizado!")
+                                time.sleep(1.5)
+                                st.rerun()
+                    else:
+                        st.info("No hay atenciones registradas en el calendario para este paciente.")
+                
+                st.markdown("---")
+                
                 with st.form(key=f"form_ficha_{paciente_seleccionado}"):
                     col_f1, col_f2 = st.columns(2)
                     with col_f1:
                         nuevo_tel = st.text_input("📞 Teléfono:", value=str(df_fichas.at[idx_ficha, 'Teléfono']).replace('nan', ''))
                         nueva_edad = st.text_input("🎂 Edad:", value=str(df_fichas.at[idx_ficha, 'Edad']).replace('nan', ''))
                         nuevo_dir = st.text_input("📍 Dirección Base:", value=str(df_fichas.at[idx_ficha, 'Dirección']).replace('nan', ''), help="Se rellenará automáticamente en el calendario.")
-                        nueva_billetera = st.text_input("💳 Tanque a Favor:", value=str(df_fichas.at[idx_ficha, 'Billetera']).replace('nan', ''), help="Puedes agregar plata aquí manualmente y se cobrarán las deudas antiguas al guardar.")
+                        nueva_billetera = st.text_input("💳 Tanque a Favor:", value=str(df_fichas.at[idx_ficha, 'Billetera']).replace('nan', ''), help="Si escribes 30, el robot sabrá que son $30.000 y pagará tus deudas automáticamente al guardar.")
                     with col_f2:
                         nuevo_diag = st.text_input("🩺 Diagnóstico:", value=str(df_fichas.at[idx_ficha, 'Diagnóstico']).replace('nan', ''))
                         nuevo_valor = st.text_input("💰 Valor Sesión (CLP):", value=str(df_fichas.at[idx_ficha, 'Valor Sesión']).replace('nan', ''))
@@ -1161,30 +1272,6 @@ else:
                     if st.form_submit_button("💾 Guardar Ficha"):
                         nueva_b = parse_dinero(nueva_billetera)
                         
-                        # EL TANQUE MÁGICO: Barrido histórico para pagar deudas si le agregaste plata a la ficha manualmente
-                        if nueva_b > 0:
-                            df_full_sweep = cargar_tabla("Clinica")
-                            mask_d = (df_full_sweep['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & \
-                                     (df_full_sweep['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"]))
-                            if mask_d.any():
-                                mapa_val = obtener_valor_por_paciente()
-                                mapa_pau = obtener_valor_pauta_por_paciente()
-                                idx_deudas = df_full_sweep[mask_d].sort_values(by=['Fecha', 'Hora']).index
-                                cambios_sweep = False
-                                for idxd in idx_deudas:
-                                    if nueva_b <= 0: break
-                                    mot_d = str(df_full_sweep.at[idxd, 'Detalle / Motivo']).strip()
-                                    v_ses = mapa_pau.get(paciente_seleccionado.upper(), 0.0) if mot_d == "Pauta Online 💻" else mapa_val.get(paciente_seleccionado.upper(), 0.0)
-                                    ab_prev = parse_dinero(df_full_sweep.at[idxd, 'Abono ($)'])
-                                    deuda_r = v_ses - ab_prev
-                                    if deuda_r > 0 and nueva_b >= deuda_r:
-                                        nueva_b -= deuda_r
-                                        df_full_sweep.at[idxd, 'Pago'] = "Saldada con Billetera ✅"
-                                        cambios_sweep = True
-                                if cambios_sweep:
-                                    guardar_tabla("Clinica", df_full_sweep)
-                                    st.toast("⛽ ¡El Tanque cubrió deudas antiguas automáticamente!")
-
                         df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
                         df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
                         df_fichas.at[idx_ficha, 'Dirección'] = nuevo_dir
@@ -1203,6 +1290,11 @@ else:
                         df_fichas.at[idx_ficha, 'Valor Sesión'] = nuevo_valor
                         df_fichas.at[idx_ficha, 'Valor Pauta'] = nuevo_valor_pauta
                         guardar_tabla("Fichas", df_fichas)
+                        
+                        # Al guardar la ficha, revisamos si el nuevo tanque puede pagar deudas
+                        if ejecutar_barrido_billeteras():
+                            st.toast("⛽ ¡El Tanque Mágico cubrió deudas pasadas automáticamente!")
+                            
                         st.success("¡Ficha actualizada!")
                         time.sleep(1)
                         st.rerun()
@@ -1252,6 +1344,8 @@ else:
                                 
                                 with st.spinner("Registrando venta en el sistema..."):
                                     guardar_dia("Clinica", fecha_pauta_str, df_dia_pauta)
+                                    if ejecutar_barrido_billeteras():
+                                        st.toast("⛽ ¡El Tanque Mágico cubrió la Pauta automáticamente!")
                                     st.success("✅ ¡Pauta registrada exitosamente!")
                                     time.sleep(1.5)
                                     st.rerun()
@@ -1341,8 +1435,8 @@ else:
                         "Paciente": st.column_config.TextColumn("Paciente", disabled=True),
                         "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
                         "Costo Sesión": st.column_config.TextColumn("Valor Base ($)", disabled=True), 
-                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Pagada con Billetera ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                        "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)")
+                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                        "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)")
                     }
                 )
                 
@@ -1365,6 +1459,8 @@ else:
                                 df_full_clinica_dash.at[idx_clin, 'Abono ($)'] = str(int(val_abono_parsed)) if val_abono_parsed > 0 else ""
 
                         guardar_tabla("Clinica", df_full_clinica_dash)
+                        if ejecutar_barrido_billeteras():
+                            st.toast("⛽ ¡El Tanque Mágico descontó sesiones impagas automáticamente!")
                         st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
                         time.sleep(1.5)
                         st.rerun()
