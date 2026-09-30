@@ -93,21 +93,31 @@ def guardar_tabla(nombre_hoja, df):
         hoja.update([df_limpio.columns.values.tolist()] + df_limpio.values.tolist())
     st.cache_data.clear()
 
-# --- MAGIA CONTABLE: LECTURA DE MILES Y REPARACIÓN DEL BUG DE LOS MILLONES ---
 def parse_dinero(val):
     try:
         if pd.isna(val): return 0.0
         s = str(val).strip()
         if s in ["", "nan", "NaN", "-"]: return 0.0
         s = s.replace('$', '')
-        if s.endswith('.0'): s = s[:-2] # Elimina el ".0" fantasma
+        if s.endswith('.0'): s = s[:-2] 
         s = s.replace('.', '').replace(',', '')
         v = float(s)
-        # Si el número es menor a 1000, el robot asume que hablas en miles de pesos.
         if 0 < v < 1000: return v * 1000
         return v
     except:
         return 0.0
+
+# --- CÁLCULO DE IMPUESTOS SII CHILE LEY 21.133 ---
+def obtener_tasa_sii(anio):
+    tasas = {
+        2024: 0.1375, # 13.75%
+        2025: 0.1450, # 14.5%
+        2026: 0.1525, # 15.25%
+        2027: 0.1600, # 16%
+    }
+    if anio < 2024: return 0.13
+    if anio >= 2028: return 0.17 # Techo legal 17% desde 2028
+    return tasas.get(anio, 0.1525)
 
 # --- MEMORIA Y NAVEGACIÓN ---
 if "app_fecha_sel" not in st.session_state: st.session_state.app_fecha_sel = date.today()
@@ -257,7 +267,7 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
-        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️️"]))]
         tot_sesiones = len(df_pac)
         pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅"])])
         adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
@@ -339,7 +349,7 @@ else:
                 ingreso_hoy = abono_val
                 pagada_count = 1
             elif pago_estado == "Saldada con Billetera ✅":
-                ingreso_hoy = abono_val # Solo suma si hubo cash en ese momento
+                ingreso_hoy = abono_val 
                 pagada_count = 1
             elif pago_estado == "Abono Parcial ⏳":
                 ingreso_hoy = abono_val
@@ -809,7 +819,7 @@ else:
                         df_clinica_dest = cargar_datos_clinica(f_dest_str)
                         idx_dest = df_clinica_dest.index[df_clinica_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()[0]
                         if str(df_clinica_dest.at[idx_dest, 'Paciente']).strip() != "":
-                            st.error("⚠️ La hora de destino está ocupada.")
+                            st.error("⚠️️ La hora de destino está ocupada.")
                         else:
                             with st.spinner("Procesando..."):
                                 df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
@@ -986,7 +996,6 @@ else:
                     pago_est = str(r['Pago']).strip()
                     abono_val = parse_dinero(r['Abono ($)'])
                     
-                    # Limpiamos visualmente la celda para que "30" se convierta en "30000" a la vista
                     df_clinica_editado.at[idx, 'Abono ($)'] = str(int(abono_val)) if abono_val > 0 else ""
 
                     motivo = str(r['Detalle / Motivo']).strip()
@@ -1012,7 +1021,6 @@ else:
             exito2 = guardar_dia("Personal", fecha_str, df_personal)
             
             if exito1:
-                # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
                 if ejecutar_barrido_billeteras():
                     st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
                     
@@ -1029,7 +1037,7 @@ else:
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
             
         with st.expander("⏳ Bloqueos de Agenda (Por Horas o Día Completo)"):
-            tab_bloq_hora, tab_bloq_dia = st.tabs(["⏱️ Por Horas", "🚫 Día Completo"])
+            tab_bloq_hora, tab_bloq_dia = st.tabs(["⏱️️ Por Horas", "🚫 Día Completo"])
             
             with tab_bloq_hora:
                 col_b1, col_b2, col_b3 = st.columns(3)
@@ -1169,7 +1177,7 @@ else:
 
                 st.markdown("---")
                 
-                # --- NUEVO: HISTORIAL DE ATENCIONES Y PAGOS ---
+                # --- NUEVO: HISTORIAL DE ATENCIONES Y PAGOS EN LA FICHA ---
                 st.markdown("### 🗓️ Historial de Atenciones y Pagos")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
@@ -1178,8 +1186,8 @@ else:
                         
                         deuda_count = len(df_filtro_pac[df_filtro_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
                         if deuda_count > 0:
-                            if st.button(f"✅ Marcar las {deuda_count} atenciones adeudadas como PAGADAS", type="secondary", use_container_width=True):
-                                with st.spinner(f"Procesando el pago de los {deuda_count} servicios..."):
+                            if st.button(f"✅ Marcar las {deuda_count} atenciones adeudadas como PAGADAS (Efectivo/Cash)", type="secondary", use_container_width=True):
+                                with st.spinner(f"Procesando el pago manual de los {deuda_count} servicios..."):
                                     df_update = cargar_tabla("Clinica")
                                     mask_deuda = (df_update['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()) & (df_update['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"]))
                                     df_update.loc[mask_deuda, 'Pago'] = "Pagada ✅"
@@ -1205,7 +1213,7 @@ else:
                             
                         df_mostrar['Valor ($)'] = df_mostrar.apply(calcular_costo_visual, axis=1)
                         
-                        st.markdown("💡 *Edita la columna 'Pago' o 'Abono ($)' individualmente y guarda para actualizar atenciones pasadas.*")
+                        st.markdown("💡 *Edita la columna 'Pago' o 'Abono ($)' de atenciones históricas.*")
                         
                         cols_order = ['Fecha', 'Hora', 'Detalle / Motivo', 'Valor ($)', 'Pago', 'Abono ($)']
                         df_mostrar = df_mostrar[cols_order]
@@ -1271,7 +1279,7 @@ else:
                     
                     if st.form_submit_button("💾 Guardar Ficha"):
                         nueva_b = parse_dinero(nueva_billetera)
-                        
+
                         df_fichas.at[idx_ficha, 'Teléfono'] = nuevo_tel
                         df_fichas.at[idx_ficha, 'Edad'] = nueva_edad
                         df_fichas.at[idx_ficha, 'Dirección'] = nuevo_dir
@@ -1291,7 +1299,6 @@ else:
                         df_fichas.at[idx_ficha, 'Valor Pauta'] = nuevo_valor_pauta
                         guardar_tabla("Fichas", df_fichas)
                         
-                        # Al guardar la ficha, revisamos si el nuevo tanque puede pagar deudas
                         if ejecutar_barrido_billeteras():
                             st.toast("⛽ ¡El Tanque Mágico cubrió deudas pasadas automáticamente!")
                             
@@ -1374,6 +1381,11 @@ else:
             total_billetera_global = pd.to_numeric(df_fichas_billetera['Billetera'], errors='coerce').fillna(0).sum()
         else:
             total_billetera_global = 0.0
+            
+        # --- CÁLCULO SII INCORPORADO ---
+        tasa_sii_actual = obtener_tasa_sii(año_seleccionado)
+        impuesto_estimado = stats['ingresos'] * tasa_sii_actual
+        liquido_estimado = stats['ingresos'] - impuesto_estimado
         
         st.markdown(f"### 📊 Resultados de {mes_seleccionado} {año_seleccionado}")
         col_d1, col_d2, col_d3, col_d4 = st.columns(4)
@@ -1382,6 +1394,15 @@ else:
         col_d3.metric("⏳ Deuda Pendiente", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
         col_d4.metric("💳 Tanques a Favor", f"${total_billetera_global:,.0f}".replace(",", "."), help="Dinero adelantado por pacientes aún no consumido")
         
+        st.markdown("---")
+        st.markdown("### 🏛️ Proyección de Impuestos SII (Boletas de Honorarios)")
+        st.info(f"💡 Para el año {año_seleccionado}, la retención legal del SII es de **{tasa_sii_actual*100:.2f}%**. Si boleteas todo lo que te han pagado este mes, esto es lo que debes considerar:")
+        
+        col_sii1, col_sii2, col_sii3 = st.columns(3)
+        col_sii1.metric("Total Bruto (Ingresos Pagados)", f"${stats['ingresos']:,.0f}".replace(",", "."))
+        col_sii2.metric("🔴 Retención SII (Aprox)", f"${impuesto_estimado:,.0f}".replace(",", "."))
+        col_sii3.metric("🟢 Tu Bolsillo (Líquido Real)", f"${liquido_estimado:,.0f}".replace(",", "."))
+
         st.markdown("---")
         
         st.markdown("#### 🔍 Desglose de Contabilidad")
