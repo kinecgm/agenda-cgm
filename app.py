@@ -268,9 +268,8 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
-        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
+        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️️"]))]
         tot_sesiones = len(df_pac)
-        # Inclusión amplia de las variantes de pago con billetera para métricas perfectas
         pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅"])])
         adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
         return tot_sesiones, pagadas, adeudadas
@@ -354,7 +353,7 @@ else:
                 ingreso_hoy = abono_val
                 pagada_count = 1
             elif pago_estado in ["Saldada con Billetera ✅", "Pagada con Billetera ✅"]:
-                ingreso_hoy = abono_val # Dinero fresco ingresado (puede ser 0 si se pagó 100% con tanque)
+                ingreso_hoy = abono_val 
                 pagada_count = 1
             elif pago_estado == "Abono Parcial ⏳":
                 ingreso_hoy = abono_val
@@ -371,8 +370,7 @@ else:
             resultado["por_cobrar"] += deuda_hoy
             
             # --- CORRECCIÓN BOLETA ---
-            # Si marcaste que diste boleta, el SII exige que declares el valor de la sesión (ej: 30000), 
-            # independiente de si hoy entró efectivo cero porque la sesión se cobró del tanque.
+            # Si se emite boleta, se declara el valor total de la sesión independientemente de si se pagó del Tanque
             if boleta_estado == "Sí 🧾":
                 resultado["ingresos_boleta"] += val_sesion
             
@@ -432,7 +430,7 @@ else:
                     for idxd in idx_deudas:
                         if billetera <= 0: break
                         motivo = str(df_clinica.at[idxd, 'Detalle / Motivo']).strip()
-                        if motivo in ["Personal / Trámite 🛑", "Gimnasio 🏋️️"]: continue
+                        if motivo in ["Personal / Trámite 🛑", "Gimnasio 🏋️"]: continue
                         
                         val_total = mapa_pau.get(paciente, 0.0) if motivo == "Pauta Online 💻" else mapa_val.get(paciente, 0.0)
                         if val_total <= 0: continue 
@@ -540,7 +538,6 @@ else:
         es_almuerzo = (paciente.upper() == "ALMUERZO")
         hay_paciente = (paciente != "" and not es_almuerzo)
         
-        # MAGIA: Si no tiene dirección en la tabla, la saca de la ficha
         if hay_paciente and direccion == "":
             dir_guardada = mapa_direcciones.get(paciente.upper(), "")
             if dir_guardada != "":
@@ -1015,7 +1012,6 @@ else:
                     pago_est = str(r['Pago']).strip()
                     abono_val = parse_dinero(r['Abono ($)'])
                     
-                    # Limpiamos visualmente la celda para que "30" se convierta en "30000" a la vista
                     df_clinica_editado.at[idx, 'Abono ($)'] = str(int(abono_val)) if abono_val > 0 else ""
 
                     motivo = str(r['Detalle / Motivo']).strip()
@@ -1052,7 +1048,7 @@ else:
 
     with tab2:
         col_p1, col_p2 = st.columns([3, 1])
-        with col_p1: st.header(f"🕰️️ Horario Personal - {fecha_visual}")
+        with col_p1: st.header(f"🕰️ Horario Personal - {fecha_visual}")
         with col_p2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
