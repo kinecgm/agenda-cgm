@@ -270,7 +270,8 @@ else:
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
         df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
         tot_sesiones = len(df_pac)
-        pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada (Excedente) ✅"])])
+        # Inclusión amplia de las variantes de pago con billetera para métricas perfectas
+        pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅"])])
         adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
         return tot_sesiones, pagadas, adeudadas
 
@@ -352,8 +353,8 @@ else:
             elif pago_estado == "Pagada (Excedente) ✅":
                 ingreso_hoy = abono_val
                 pagada_count = 1
-            elif pago_estado == "Saldada con Billetera ✅":
-                ingreso_hoy = abono_val 
+            elif pago_estado in ["Saldada con Billetera ✅", "Pagada con Billetera ✅"]:
+                ingreso_hoy = abono_val # Dinero fresco ingresado (puede ser 0 si se pagó 100% con tanque)
                 pagada_count = 1
             elif pago_estado == "Abono Parcial ⏳":
                 ingreso_hoy = abono_val
@@ -369,8 +370,11 @@ else:
             resultado["ingresos"] += ingreso_hoy
             resultado["por_cobrar"] += deuda_hoy
             
+            # --- CORRECCIÓN BOLETA ---
+            # Si marcaste que diste boleta, el SII exige que declares el valor de la sesión (ej: 30000), 
+            # independiente de si hoy entró efectivo cero porque la sesión se cobró del tanque.
             if boleta_estado == "Sí 🧾":
-                resultado["ingresos_boleta"] += ingreso_hoy
+                resultado["ingresos_boleta"] += val_sesion
             
             if es_pauta:
                 resultado["ingresos_pautas"] += ingreso_hoy
@@ -428,7 +432,7 @@ else:
                     for idxd in idx_deudas:
                         if billetera <= 0: break
                         motivo = str(df_clinica.at[idxd, 'Detalle / Motivo']).strip()
-                        if motivo in ["Personal / Trámite 🛑", "Gimnasio 🏋️"]: continue
+                        if motivo in ["Personal / Trámite 🛑", "Gimnasio 🏋️️"]: continue
                         
                         val_total = mapa_pau.get(paciente, 0.0) if motivo == "Pauta Online 💻" else mapa_val.get(paciente, 0.0)
                         if val_total <= 0: continue 
@@ -969,7 +973,7 @@ else:
                 "Recordatorio": st.column_config.LinkColumn("📲 WhatsApp", disabled=True, display_text="Enviar"),
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
-                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
                 "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
@@ -1025,9 +1029,9 @@ else:
                         df_clinica_editado.at[idx, 'Pago'] = "Pagada (Excedente) ✅"
                         cambios_fichas = True
                         st.toast(f"⛽ Se guardaron ${excedente:,.0f} en el tanque de {pac}")
-                    elif abono_val == val_ses and val_ses > 0 and pago_est not in ["Pagada ✅", "Pagada (Excedente) ✅", "Saldada con Billetera ✅"]:
+                    elif abono_val == val_ses and val_ses > 0 and pago_est not in ["Pagada ✅", "Pagada (Excedente) ✅", "Saldada con Billetera ✅", "Pagada con Billetera ✅"]:
                         df_clinica_editado.at[idx, 'Pago'] = "Pagada ✅"
-                    elif 0 < abono_val < val_ses and pago_est not in ["Abono Parcial ⏳", "Saldada con Billetera ✅"]:
+                    elif 0 < abono_val < val_ses and pago_est not in ["Abono Parcial ⏳", "Saldada con Billetera ✅", "Pagada con Billetera ✅"]:
                         df_clinica_editado.at[idx, 'Pago'] = "Abono Parcial ⏳"
             
             if cambios_fichas:
@@ -1048,7 +1052,7 @@ else:
 
     with tab2:
         col_p1, col_p2 = st.columns([3, 1])
-        with col_p1: st.header(f"🕰️ Horario Personal - {fecha_visual}")
+        with col_p1: st.header(f"🕰️️ Horario Personal - {fecha_visual}")
         with col_p2:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_personal = st.button("💾 Guardar Personal", use_container_width=True, type="primary", key="btn_save_personal")
@@ -1194,7 +1198,7 @@ else:
 
                 st.markdown("---")
                 
-                # --- NUEVO: HISTORIAL DE ATENCIONES Y PAGOS EN LA FICHA ---
+                # --- HISTORIAL DE ATENCIONES Y PAGOS EN LA FICHA ---
                 st.markdown("### 🗓️ Historial de Atenciones y Pagos")
                 df_full_clinica_hist = cargar_tabla("Clinica")
                 if not df_full_clinica_hist.empty and 'Paciente' in df_full_clinica_hist.columns:
@@ -1246,7 +1250,7 @@ else:
                                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
                                 "Detalle / Motivo": st.column_config.TextColumn("Servicio", disabled=True),
                                 "Valor ($)": st.column_config.TextColumn("Valor ($)", disabled=True),
-                                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                                "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
                                 "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
                                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"])
                             }
@@ -1478,7 +1482,7 @@ else:
                         "Paciente": st.column_config.TextColumn("Paciente", disabled=True),
                         "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
                         "Costo Sesión": st.column_config.TextColumn("Valor Base ($)", disabled=True), 
-                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
                         "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
                         "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"])
                     }
