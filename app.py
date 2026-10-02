@@ -268,7 +268,7 @@ else:
         nombre_norm = str(nombre_paciente).strip().upper()
         df_completo = cargar_tabla("Clinica")
         if df_completo.empty or 'Paciente' not in df_completo.columns: return 0, 0, 0
-        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️️"]))]
+        df_pac = df_completo[(df_completo['Paciente'].str.strip().str.upper() == nombre_norm) & (~df_completo['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))]
         tot_sesiones = len(df_pac)
         pagadas = len(df_pac[df_pac['Pago'].isin(["Pagada ✅", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅"])])
         adeudadas = len(df_pac[df_pac['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳"])])
@@ -369,8 +369,6 @@ else:
             resultado["ingresos"] += ingreso_hoy
             resultado["por_cobrar"] += deuda_hoy
             
-            # --- CORRECCIÓN BOLETA ---
-            # Si se emite boleta, se declara el valor total de la sesión independientemente de si se pagó del Tanque
             if boleta_estado == "Sí 🧾":
                 resultado["ingresos_boleta"] += val_sesion
             
@@ -411,7 +409,6 @@ else:
         
         df_fichas['Billetera'] = pd.to_numeric(df_fichas['Billetera'], errors='coerce').fillna(0.0)
         
-        # REGLA DE TIEMPO: Creamos una lectura de fechas para saber qué es futuro
         df_clinica['Fecha_Obj'] = pd.to_datetime(df_clinica['Fecha'], errors='coerce').dt.date
         hoy = date.today()
         
@@ -420,7 +417,6 @@ else:
             if billetera > 0:
                 paciente = str(row_f['Paciente']).strip().upper()
                 
-                # MAGIA GOTA A GOTA: Solo miramos deudas de HOY hacia atrás. El futuro no se toca.
                 mask_deudas = (df_clinica['Paciente'].astype(str).str.strip().str.upper() == paciente) & \
                               (df_clinica['Pago'].isin(["No pagada ❌", "Abono Parcial ⏳", "-", "Descontar Billetera 💳"])) & \
                               (df_clinica['Fecha_Obj'] <= hoy)
@@ -1012,6 +1008,7 @@ else:
                     pago_est = str(r['Pago']).strip()
                     abono_val = parse_dinero(r['Abono ($)'])
                     
+                    # Limpiamos visualmente la celda para que "30" se convierta en "30000" a la vista
                     df_clinica_editado.at[idx, 'Abono ($)'] = str(int(abono_val)) if abono_val > 0 else ""
 
                     motivo = str(r['Detalle / Motivo']).strip()
@@ -1060,7 +1057,7 @@ else:
                 col_b1, col_b2, col_b3 = st.columns(3)
                 with col_b1:
                     hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
+                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 transactions horas)", "240 minutos (4 horas)"])
                 with col_b2:
                     act_b = st.text_input("Actividad:")
                     cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
@@ -1377,6 +1374,31 @@ else:
                                     st.success("✅ ¡Pauta registrada exitosamente!")
                                     time.sleep(1.5)
                                     st.rerun()
+
+                # --- ZONA DE PELIGRO: ELIMINAR PACIENTE ---
+                st.markdown("---")
+                with st.expander("⚠️ Zona de Peligro: Eliminar Paciente"):
+                    st.warning(f"¿Estás seguro de que deseas eliminar completamente a **{paciente_seleccionado}**? Esto borrará su ficha y eliminará su nombre de todas las atenciones agendadas e históricas en tu calendario.")
+                    if st.button("🚨 Eliminar Paciente Definitivamente", type="primary", use_container_width=True):
+                        with st.spinner("Borrando registros..."):
+                            df_f_del = cargar_tabla("Fichas")
+                            df_f_del = df_f_del[df_f_del['Paciente'].astype(str).str.strip().str.upper() != paciente_seleccionado.upper()]
+                            guardar_tabla("Fichas", df_f_del)
+                            
+                            df_c_del = cargar_tabla("Clinica")
+                            mask_del = df_c_del['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()
+                            df_c_del.loc[mask_del, 'Paciente'] = ""
+                            df_c_del.loc[mask_del, 'Detalle / Motivo'] = "-"
+                            df_c_del.loc[mask_del, 'Dirección'] = ""
+                            df_c_del.loc[mask_del, 'Pago'] = "-"
+                            df_c_del.loc[mask_del, 'Abono ($)'] = ""
+                            df_c_del.loc[mask_del, 'Boleta'] = "-"
+                            df_c_del.loc[mask_del, 'N° Sesión'] = ""
+                            guardar_tabla("Clinica", df_c_del)
+                            
+                            st.success(f"✅ ¡{paciente_seleccionado} fue eliminado del sistema!")
+                            time.sleep(1.5)
+                            st.rerun()
 
     with tab4:
         st.header("📊 Dashboard Financiero")
