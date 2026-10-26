@@ -198,7 +198,8 @@ if st.session_state.app_vista == "calendario":
                 hora_corta = r['Hora_limpia']
                 paciente_corto = str(r['Paciente']).strip()
                 lista_pacs.append(f"⏱ {hora_corta} - {paciente_corto}")
-            mapa_nombres_cal[f] = "\n\n".join(lista_pacs)
+            # Se usan dos espacios y un salto de línea para mantener todo en el mismo párrafo
+            mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
     for week_idx, week in enumerate(cal):
