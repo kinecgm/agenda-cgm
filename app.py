@@ -191,11 +191,11 @@ if st.session_state.app_vista == "calendario":
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # COLOR EN EL TEXTO DEL BOTÓN - IGNORA EL COLOR SI ES "HOY" PARA QUE SE LEA EL TEXTO BLANCO
+                # COLOR EN EL TEXTO DEL BOTÓN - Sin color explícito para 0 (usa color default elegante)
                 if is_today:
                     texto_boton = f"**{day}**"
                 else:
-                    if cant_pacs == 0: texto_boton = f":gray[**{day}**]"
+                    if cant_pacs == 0: texto_boton = f"**{day}**"
                     elif cant_pacs == 1: texto_boton = f":green[**{day}**]"
                     elif cant_pacs == 2: texto_boton = f":blue[**{day}**]"
                     else: texto_boton = f":red[**{day}**]"
@@ -208,10 +208,10 @@ if st.session_state.app_vista == "calendario":
                     st.rerun()
             else: cols[i].write("")
 
-    # Leyenda visual renovada
+    # Leyenda visual renovada con color por defecto para Libre
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #95a5a6;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
         <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
         <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
         <span style='color: #e74c3c;'>●</span> 3+ Pacientes
