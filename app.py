@@ -80,9 +80,7 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
-    
     doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1UWyFJrlYcP_PK4fVYVPxbARIobNl4p8DuQ8OgyNU6aA/edit")
-    
     return doc_kine, creds
 
 try: 
@@ -130,12 +128,7 @@ def parse_dinero(val):
 
 # --- CÁLCULO DE IMPUESTOS SII CHILE LEY 21.133 ---
 def obtener_tasa_sii(anio):
-    tasas = {
-        2024: 0.1375, 
-        2025: 0.1450, 
-        2026: 0.1525, 
-        2027: 0.1600, 
-    }
+    tasas = {2024: 0.1375, 2025: 0.1450, 2026: 0.1525, 2027: 0.1600}
     if anio < 2024: return 0.13
     if anio >= 2028: return 0.17
     return tasas.get(anio, 0.1525)
@@ -828,7 +821,7 @@ else:
             with tab_ag:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
-                    m_paciente = st.text_input("Paciente:")
+                    m_paciente = text_input("Paciente:")
                     m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
                     m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
                 with col_m2:
@@ -1138,8 +1131,8 @@ else:
             if exito1:
                 # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
                 if ejecutar_barrido_billeteras():
-                    st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
-                    
+                    st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
+                        
             if exito1 and exito2:
                 st.success("¡Agenda guardada y Tanque de Bencina sincronizado!")
                 time.sleep(1.5)
