@@ -1,10 +1,3 @@
-¡Oído cocina! "Naranja estilo fruta" (un naranja vivo, tipo mandarina) y un "Rojo Fuerte" de alerta máxima para los días que estás a tope. Y volvemos al verde para los días libres, que psicológicamente sí da esa sensación de "vía libre" o "descanso".
-
-Para asegurarme de que los colores sean exactamente esos y no los aburridos por defecto, le inyecté códigos hexadecimales de color puro al texto.
-
-Aquí tienes tu **`app.py`** con la paleta de colores definitiva. ¡Copia, pega y a disfrutar de esa interfaz!
-
-```python
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime, timedelta
@@ -1621,5 +1614,3 @@ else:
             st.dataframe(df_anual_visual, use_container_width=True, hide_index=True)
         else:
             st.info(f"No hay movimientos financieros registrados en el sistema durante {año_seleccionado}.")
-
-```
