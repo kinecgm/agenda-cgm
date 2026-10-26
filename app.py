@@ -821,7 +821,7 @@ else:
             with tab_ag:
                 col_m1, col_m2, col_m3 = st.columns(3)
                 with col_m1:
-                    m_paciente = text_input("Paciente:")
+                    m_paciente = st.text_input("Paciente:")
                     m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
                     m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
                 with col_m2:
