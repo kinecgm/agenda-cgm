@@ -28,11 +28,12 @@ st.markdown("""
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
     
-    /* Forzar el grosor y color base de los números en los botones */
+    /* Forzar el grosor del texto dentro del botón del calendario */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
         font-weight: 900 !important;
         font-size: 1.2rem !important;
+        color: #2C3E50 !important;
     }
     
     /* MAGIA PARA CELULARES (VERTICAL) */
@@ -180,11 +181,9 @@ if st.session_state.app_vista == "calendario":
             (~df_clinica_cal['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))
         ].copy()
         
-        # Conteo para los colores
         conteos = df_validos.groupby('Fecha').size().to_dict()
         mapa_pacientes_cal = conteos
         
-        # Extracción de nombres para la burbuja flotante (Tooltip)
         df_validos['Hora_limpia'] = df_validos['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
         df_validos = df_validos.sort_values(by=['Fecha', 'Hora_limpia'])
         
@@ -206,17 +205,23 @@ if st.session_state.app_vista == "calendario":
                 detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                if is_today:
-                    texto_boton = f"**{day}**"
-                else:
-                    if cant_pacs == 0: texto_boton = f"**{day}**"
-                    elif cant_pacs == 1: texto_boton = f":green[**{day}**]"
-                    elif cant_pacs == 2: texto_boton = f":blue[**{day}**]"
-                    else: texto_boton = f":orange[**{day}**]"
-
+                texto_boton = str(day)
                 btn_type = "primary" if is_today else "secondary"
                 
-                # SE INYECTA EL TOOLTIP EN EL PARÁMETRO "HELP"
+                if not is_today and cant_pacs > 0:
+                    if cant_pacs == 1: color_txt = "#2ecc71"
+                    elif cant_pacs == 2: color_txt = "#3498db"
+                    elif cant_pacs == 3: color_txt = "#FF8C00"
+                    else: color_txt = "#FF0000"
+                    
+                    cols[i].markdown(f"""
+                    <style>
+                    div[data-testid="stHorizontalBlock"] button[key="d_{año_act}_{mes_act}_{day}"] p {{
+                        color: {color_txt} !important;
+                    }}
+                    </style>
+                    """, unsafe_allow_html=True)
+
                 if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", help=detalle_dia, use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
@@ -229,11 +234,22 @@ if st.session_state.app_vista == "calendario":
         <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
         <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
         <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #ff9f43;'>●</span> 3+ Pacientes
+        <span style='color: #FF8C00;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
+    # --- PANEL MÓVIL: RESUMEN RÁPIDO ---
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
+    with st.expander("📱 Resumen de Pacientes (Vista Celular)"):
+        pacs_este_mes = {k: v for k, v in mapa_nombres_cal.items() if k.startswith(f"{año_act}-{mes_act:02d}")}
+        if pacs_este_mes:
+            for f, detalles in sorted(pacs_este_mes.items()):
+                dia_num = int(f.split('-')[2])
+                st.markdown(f"**Día {dia_num}**")
+                st.info(detalles)
+        else:
+            st.write("No hay pacientes agendados este mes.")
+
     st.button("🎯 Ir directamente a la agenda de Hoy", on_click=ir_a_hoy, use_container_width=True, type="primary")
 
 else:
@@ -1035,7 +1051,7 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
+                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
