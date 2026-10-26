@@ -239,17 +239,32 @@ if st.session_state.app_vista == "calendario":
     </div>
     """, unsafe_allow_html=True)
     
-    # --- PANEL MÓVIL: RESUMEN RÁPIDO ---
+    # --- PANEL MÓVIL: RESUMEN RÁPIDO ORDENADO POR SEMANAS ---
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
     with st.expander("📱 Resumen de Pacientes (Vista Celular)"):
-        pacs_este_mes = {k: v for k, v in mapa_nombres_cal.items() if k.startswith(f"{año_act}-{mes_act:02d}")}
-        if pacs_este_mes:
-            for f, detalles in sorted(pacs_este_mes.items()):
-                dia_num = int(f.split('-')[2])
-                st.markdown(f"**Día {dia_num}**")
-                st.info(detalles)
-        else:
-            st.write("No hay pacientes agendados este mes.")
+        # Generar las pestañas basadas en las semanas reales del mes
+        cal_semanas = calendar.monthcalendar(año_act, mes_act)
+        nombres_tabs = []
+        for i, semana in enumerate(cal_semanas):
+            dias_reales = [d for d in semana if d != 0]
+            if dias_reales:
+                nombres_tabs.append(f"Sem {i+1} ({dias_reales[0]}-{dias_reales[-1]})")
+            
+        tabs_semanas = st.tabs(nombres_tabs)
+        
+        for i, semana in enumerate(cal_semanas):
+            with tabs_semanas[i]:
+                hay_pacientes_semana = False
+                for day in semana:
+                    if day != 0:
+                        fecha_str_semana = f"{año_act}-{mes_act:02d}-{day:02d}"
+                        if fecha_str_semana in mapa_nombres_cal:
+                            st.markdown(f"**Día {day}**")
+                            st.info(mapa_nombres_cal[fecha_str_semana])
+                            hay_pacientes_semana = True
+                
+                if not hay_pacientes_semana:
+                    st.write("Libre. No hay pacientes esta semana. 🟢")
 
     st.button("🎯 Ir directamente a la agenda de Hoy", on_click=ir_a_hoy, use_container_width=True, type="primary")
 
@@ -1142,7 +1157,7 @@ else:
                 col_b1, col_b2, col_b3 = st.columns(3)
                 with col_b1:
                     hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 select box)", "240 minutos (4 horas)"])
+                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
                 with col_b2:
                     act_b = st.text_input("Actividad:")
                     cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
