@@ -191,14 +191,16 @@ if st.session_state.app_vista == "calendario":
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # NUEVA PALETA DE COLORES PERSONALIZADA (HEX CODES)
+                # HTML SEGURO PARA COLORES PERFECTOS EN LOS BOTONES
                 if is_today:
-                    texto_boton = f"**{day}**"
+                    texto_boton = f"{day}"
                 else:
-                    if cant_pacs == 0: texto_boton = f":#2ecc71[**{day}**]" # Verde
-                    elif cant_pacs == 1: texto_boton = f":#3498db[**{day}**]" # Azul
-                    elif cant_pacs == 2: texto_boton = f":#FF8C00[**{day}**]" # Naranja Frutal
-                    else: texto_boton = f":#FF0000[**{day}**]" # Rojo Fuerte
+                    if cant_pacs == 0: color_hex = "#2C3E50" # Libre (Azul marino oscuro)
+                    elif cant_pacs == 1: color_hex = "#2ecc71" # Verde (1 paciente)
+                    elif cant_pacs == 2: color_hex = "#3498db" # Azul (2 pacientes)
+                    elif cant_pacs == 3: color_hex = "#FF8C00" # Naranja Frutal (3 pacientes)
+                    else: color_hex = "#FF0000" # Rojo Fuerte (4+ pacientes)
+                    texto_boton = f"<span style='color: {color_hex}; font-weight: 900;'>{day}</span>"
 
                 btn_type = "primary" if is_today else "secondary"
                 
@@ -211,10 +213,10 @@ if st.session_state.app_vista == "calendario":
     # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #FF8C00;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #FF0000;'>●</span> 3+ Pacientes
+        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #FF8C00;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1566,7 +1568,7 @@ else:
                         if 'Boleta' not in df_full_clinica_dash.columns: df_full_clinica_dash['Boleta'] = "-"
                         
                         for index, row in df_editado_dash.iterrows():
-                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").str.strip()
                             mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
                                            (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
                                            (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
