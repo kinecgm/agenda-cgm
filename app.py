@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO + THICK FONT) ---
+# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO + THICK FONT + FANTASMAS) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
@@ -28,12 +28,17 @@ st.markdown("""
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
     
-    /* Forzar el grosor del texto dentro del botón del calendario */
+    /* Forzar el grosor del texto dentro del botón del calendario sin bloquear el color */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
         font-weight: 900 !important;
         font-size: 1.2rem !important;
-        color: #2C3E50 !important;
+    }
+    
+    /* MAGIA PARA ALINEAR LA GRILLA: Ocultar los botones "fantasma" de los días vacíos */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button[disabled] {
+        opacity: 0 !important;
+        pointer-events: none !important;
     }
     
     /* MAGIA PARA CELULARES (VERTICAL) */
@@ -196,7 +201,7 @@ if st.session_state.app_vista == "calendario":
             mapa_nombres_cal[f] = "\n\n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
-    for week in cal:
+    for week_idx, week in enumerate(cal):
         cols = st.columns(7)
         for i, day in enumerate(week):
             if day != 0:
@@ -205,36 +210,32 @@ if st.session_state.app_vista == "calendario":
                 detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                texto_boton = str(day)
+                # APLICACIÓN DE COLORES NATIVOS MARKDOWN
+                if is_today:
+                    texto_boton = f"**{day}**"
+                else:
+                    if cant_pacs == 0: texto_boton = f":green[**{day}**]"
+                    elif cant_pacs == 1: texto_boton = f":blue[**{day}**]"
+                    elif cant_pacs == 2: texto_boton = f":orange[**{day}**]"
+                    else: texto_boton = f":red[**{day}**]"
+
                 btn_type = "primary" if is_today else "secondary"
-                
-                if not is_today and cant_pacs > 0:
-                    if cant_pacs == 1: color_txt = "#2ecc71"
-                    elif cant_pacs == 2: color_txt = "#3498db"
-                    elif cant_pacs == 3: color_txt = "#FF8C00"
-                    else: color_txt = "#FF0000"
-                    
-                    cols[i].markdown(f"""
-                    <style>
-                    div[data-testid="stHorizontalBlock"] button[key="d_{año_act}_{mes_act}_{day}"] p {{
-                        color: {color_txt} !important;
-                    }}
-                    </style>
-                    """, unsafe_allow_html=True)
 
                 if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", help=detalle_dia, use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
                     st.rerun()
-            else: cols[i].write("")
+            else: 
+                # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
+                cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
     # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #FF8C00;'>●</span> 3+ Pacientes
+        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1051,7 +1052,7 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
+                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
@@ -1141,7 +1142,7 @@ else:
                 col_b1, col_b2, col_b3 = st.columns(3)
                 with col_b1:
                     hora_inicio_b = st.selectbox("Desde las:", horas_30_min, key="h_ini_bloqueo")
-                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
+                    duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 select box)", "240 minutos (4 horas)"])
                 with col_b2:
                     act_b = st.text_input("Actividad:")
                     cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
