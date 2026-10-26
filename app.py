@@ -197,7 +197,8 @@ if st.session_state.app_vista == "calendario":
             for _, r in df_f.iterrows():
                 hora_corta = r['Hora_limpia']
                 paciente_corto = str(r['Paciente']).strip()
-                lista_pacs.append(f"⏱ {hora_corta} - {paciente_corto}")
+                # USAMOS VIÑETA EN LUGAR DE EMOJI PARA QUE STREAMLIT NO LO ROBE COMO ICONO
+                lista_pacs.append(f"• {hora_corta} ➔ {paciente_corto}")
             # Se usan dos espacios y un salto de línea para mantener todo en el mismo párrafo
             mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
@@ -233,10 +234,10 @@ if st.session_state.app_vista == "calendario":
     # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
+        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
