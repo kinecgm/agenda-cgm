@@ -182,14 +182,13 @@ if st.session_state.app_vista == "calendario":
                 fecha_iter_str = f"{año_act}-{mes_act:02d}-{day:02d}"
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 
-                # COLOR EN EL TEXTO DEL BOTÓN: Ocupa cero espacio extra
+                # COLOR EN EL TEXTO DEL BOTÓN
                 if cant_pacs == 0: texto_boton = f":green[{day}]"
                 elif cant_pacs == 1: texto_boton = f":blue[{day}]"
                 elif cant_pacs == 2: texto_boton = f":orange[{day}]"
                 else: texto_boton = f":red[{day}]"
 
                 is_today = (date.today() == date(año_act, mes_act, day))
-                # Si es hoy, el botón se pone rojo sólido (primary) y el texto se vuelve blanco automático.
                 btn_type = "primary" if is_today else "secondary"
                 
                 if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
@@ -198,13 +197,13 @@ if st.session_state.app_vista == "calendario":
                     st.rerun()
             else: cols[i].write("")
 
-    # Leyenda visual renovada
+    # Leyenda visual renovada sin el "15"
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2ecc71;'>15</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>15</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #f39c12;'>15</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #e74c3c;'>15</span> 3+ Pacientes
+        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #f39c12;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
