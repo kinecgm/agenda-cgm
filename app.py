@@ -1,3 +1,10 @@
+¡Oído cocina! "Naranja estilo fruta" (un naranja vivo, tipo mandarina) y un "Rojo Fuerte" de alerta máxima para los días que estás a tope. Y volvemos al verde para los días libres, que psicológicamente sí da esa sensación de "vía libre" o "descanso".
+
+Para asegurarme de que los colores sean exactamente esos y no los aburridos por defecto, le inyecté códigos hexadecimales de color puro al texto.
+
+Aquí tienes tu **`app.py`** con la paleta de colores definitiva. ¡Copia, pega y a disfrutar de esa interfaz!
+
+```python
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime, timedelta
@@ -191,14 +198,14 @@ if st.session_state.app_vista == "calendario":
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # COLOR EN EL TEXTO DEL BOTÓN - Sin color explícito para 0 (usa color default elegante)
+                # NUEVA PALETA DE COLORES PERSONALIZADA (HEX CODES)
                 if is_today:
                     texto_boton = f"**{day}**"
                 else:
-                    if cant_pacs == 0: texto_boton = f"**{day}**"
-                    elif cant_pacs == 1: texto_boton = f":green[**{day}**]"
-                    elif cant_pacs == 2: texto_boton = f":blue[**{day}**]"
-                    else: texto_boton = f":red[**{day}**]"
+                    if cant_pacs == 0: texto_boton = f":#2ecc71[**{day}**]" # Verde
+                    elif cant_pacs == 1: texto_boton = f":#3498db[**{day}**]" # Azul
+                    elif cant_pacs == 2: texto_boton = f":#FF8C00[**{day}**]" # Naranja Frutal
+                    else: texto_boton = f":#FF0000[**{day}**]" # Rojo Fuerte
 
                 btn_type = "primary" if is_today else "secondary"
                 
@@ -208,13 +215,13 @@ if st.session_state.app_vista == "calendario":
                     st.rerun()
             else: cols[i].write("")
 
-    # Leyenda visual renovada con color por defecto para Libre
+    # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
+        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #FF8C00;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #FF0000;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1614,3 +1621,5 @@ else:
             st.dataframe(df_anual_visual, use_container_width=True, hide_index=True)
         else:
             st.info(f"No hay movimientos financieros registrados en el sistema durante {año_seleccionado}.")
+
+```
