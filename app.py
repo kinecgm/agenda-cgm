@@ -28,7 +28,7 @@ st.markdown("""
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
     
-    /* Forzar el grosor del texto dentro del botón del calendario */
+    /* Forzar el grosor y color base de los números en los botones */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
         font-weight: 900 !important;
@@ -37,14 +37,12 @@ st.markdown("""
     
     /* MAGIA PARA CELULARES (VERTICAL) */
     @media (max-width: 768px) {
-        /* Configuración de la cuadrícula del calendario para evitar que se aplaste */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
             display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
         }
-        /* Botones del calendario optimizados al máximo */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
             padding: 0px !important; min-height: 45px !important; border-radius: 6px !important;
         }
@@ -173,14 +171,30 @@ if st.session_state.app_vista == "calendario":
     # --- LÓGICA DE RADAR DE PACIENTES PARA EL CALENDARIO ---
     df_clinica_cal = cargar_tabla("Clinica")
     mapa_pacientes_cal = {}
+    mapa_nombres_cal = {}
+    
     if not df_clinica_cal.empty and 'Fecha' in df_clinica_cal.columns:
         df_validos = df_clinica_cal[
             (df_clinica_cal['Paciente'].astype(str).str.strip() != "") &
             (df_clinica_cal['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO") &
             (~df_clinica_cal['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"]))
-        ]
+        ].copy()
+        
+        # Conteo para los colores
         conteos = df_validos.groupby('Fecha').size().to_dict()
         mapa_pacientes_cal = conteos
+        
+        # Extracción de nombres para la burbuja flotante (Tooltip)
+        df_validos['Hora_limpia'] = df_validos['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+        df_validos = df_validos.sort_values(by=['Fecha', 'Hora_limpia'])
+        
+        for f, df_f in df_validos.groupby('Fecha'):
+            lista_pacs = []
+            for _, r in df_f.iterrows():
+                hora_corta = r['Hora_limpia']
+                paciente_corto = str(r['Paciente']).strip()
+                lista_pacs.append(f"⏱ {hora_corta} - {paciente_corto}")
+            mapa_nombres_cal[f] = "\n\n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
     for week in cal:
@@ -189,20 +203,21 @@ if st.session_state.app_vista == "calendario":
             if day != 0:
                 fecha_iter_str = f"{año_act}-{mes_act:02d}-{day:02d}"
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
+                detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # COLOR EN EL TEXTO USANDO MARKDOWN NATIVO (100% Compatible y Limpio)
                 if is_today:
                     texto_boton = f"**{day}**"
                 else:
-                    if cant_pacs == 0: texto_boton = f":green[**{day}**]"
-                    elif cant_pacs == 1: texto_boton = f":blue[**{day}**]"
-                    elif cant_pacs == 2: texto_boton = f":orange[**{day}**]"
-                    else: texto_boton = f":red[**{day}**]"
+                    if cant_pacs == 0: texto_boton = f"**{day}**"
+                    elif cant_pacs == 1: texto_boton = f":green[**{day}**]"
+                    elif cant_pacs == 2: texto_boton = f":blue[**{day}**]"
+                    else: texto_boton = f":orange[**{day}**]"
 
                 btn_type = "primary" if is_today else "secondary"
                 
-                if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
+                # SE INYECTA EL TOOLTIP EN EL PARÁMETRO "HELP"
+                if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", help=detalle_dia, use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
                     st.rerun()
@@ -211,10 +226,10 @@ if st.session_state.app_vista == "calendario":
     # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
+        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1581,7 +1596,7 @@ else:
 
                         guardar_tabla("Clinica", df_full_clinica_dash)
                         if ejecutar_barrido_billeteras():
-                            st.toast("⛽ ¡El Tanque Mágico descontó sesiones impagas automáticamente!")
+                            st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
                         st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
                         time.sleep(1.5)
                         st.rerun()
