@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX) ---
+# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
@@ -30,36 +30,23 @@ st.markdown("""
     
     /* MAGIA PARA CELULARES (VERTICAL) */
     @media (max-width: 768px) {
-        /* Obligar al navegador del mes a estar en una sola fila horizontal */
-        .nav-mes-container + div[data-testid="stHorizontalBlock"] {
-            display: flex !important; flex-direction: row !important; gap: 5px !important; align-items: center !important;
-        }
-        .nav-mes-container + div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            width: auto !important; flex: 1 1 0% !important; min-width: 0 !important; padding: 0 !important;
-        }
-        .nav-mes-container + div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:nth-child(2) {
-            flex: 1.8 1 0% !important; /* El mes al centro ocupa un poco más de espacio */
-        }
-        .nav-mes-container + div[data-testid="stHorizontalBlock"] h3 {
-            font-size: 1.1rem !important; margin-bottom: 0 !important; padding-bottom: 0 !important;
-        }
-
         /* Configuración de la cuadrícula del calendario para evitar que se aplaste */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
-            display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 2px !important; width: 100% !important;
+            display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
         }
-        /* Ajuste de botones de los días para que no corten el texto */
+        /* Botones del calendario optimizados al máximo: sin cortes y con números grandes */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
-            padding: 4px 0px !important; font-size: 0.9rem !important; border-radius: 4px !important; min-height: 40px !important;
+            padding: 0px !important; min-height: 45px !important; border-radius: 6px !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p {
-            font-size: 0.9rem !important; letter-spacing: -0.5px !important;
+            font-size: 1.15rem !important; font-weight: 800 !important; margin: 0 !important; 
+            overflow: visible !important; text-overflow: clip !important; white-space: normal !important;
         }
         
-        .dia-semana { font-size: 0.75rem !important; }
+        .dia-semana { font-size: 0.8rem !important; }
         .titulo-principal { font-size: 1.8rem !important; }
         .subtitulo { font-size: 1rem !important; margin-bottom: 1rem !important; }
     }
@@ -159,10 +146,6 @@ def cambiar_mes(delta):
 
 # --- RUTAS PRINCIPALES ---
 if st.session_state.app_vista == "calendario":
-    
-    # Marcador invisible para aplicar CSS responsivo exclusivamente a esta fila de botones
-    st.markdown("<div class='nav-mes-container'></div>", unsafe_allow_html=True)
-    
     col_mes1, col_mes2, col_mes3 = st.columns([1, 2, 1])
     with col_mes1: st.button("⬅️ Ant", on_click=cambiar_mes, args=(-1,), use_container_width=True)
     with col_mes2:
@@ -174,7 +157,6 @@ if st.session_state.app_vista == "calendario":
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Nombres de días ultra cortos para que no colapsen en pantallas chicas
     dias_semana = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sá", "Do"]
     cols_dias = st.columns(7)
     for i, d in enumerate(dias_semana):
@@ -184,7 +166,6 @@ if st.session_state.app_vista == "calendario":
     df_clinica_cal = cargar_tabla("Clinica")
     mapa_pacientes_cal = {}
     if not df_clinica_cal.empty and 'Fecha' in df_clinica_cal.columns:
-        # Filtramos solo pacientes reales (no almuerzos ni trámites/gimnasio)
         df_validos = df_clinica_cal[
             (df_clinica_cal['Paciente'].astype(str).str.strip() != "") &
             (df_clinica_cal['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO") &
@@ -201,23 +182,32 @@ if st.session_state.app_vista == "calendario":
                 fecha_iter_str = f"{año_act}-{mes_act:02d}-{day:02d}"
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 
-                # Asignación de colores compacta para móviles (ej: 15🔵)
-                if cant_pacs == 0: indicador = "🟢"
-                elif cant_pacs == 1: indicador = "🔵"
-                elif cant_pacs == 2: indicador = "🟡"
-                else: indicador = "🔴"
+                # COLOR EN EL TEXTO DEL BOTÓN: Ocupa cero espacio extra
+                if cant_pacs == 0: texto_boton = f":green[{day}]"
+                elif cant_pacs == 1: texto_boton = f":blue[{day}]"
+                elif cant_pacs == 2: texto_boton = f":orange[{day}]"
+                else: texto_boton = f":red[{day}]"
 
                 is_today = (date.today() == date(año_act, mes_act, day))
+                # Si es hoy, el botón se pone rojo sólido (primary) y el texto se vuelve blanco automático.
                 btn_type = "primary" if is_today else "secondary"
                 
-                if cols[i].button(f"{day}{indicador}", key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
+                if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
                     st.rerun()
             else: cols[i].write("")
 
-    # Leyenda de Colores
-    st.markdown("<div style='text-align: center; font-size: 0.85rem; color: #7f8c8d; margin-top: 15px;'>🟢 Libre | 🔵 1 Paciente | 🟡 2 Pacientes | 🔴 3+ Pacientes</div>", unsafe_allow_html=True)
+    # Leyenda visual renovada
+    st.markdown("""
+    <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
+        <span style='color: #2ecc71;'>15</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>15</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #f39c12;'>15</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #e74c3c;'>15</span> 3+ Pacientes
+    </div>
+    """, unsafe_allow_html=True)
+    
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
     st.button("🎯 Ir directamente a la agenda de Hoy", on_click=ir_a_hoy, use_container_width=True, type="primary")
 
@@ -1087,6 +1077,7 @@ else:
             exito2 = guardar_dia("Personal", fecha_str, df_personal)
             
             if exito1:
+                # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
                 if ejecutar_barrido_billeteras():
                     st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
                     
