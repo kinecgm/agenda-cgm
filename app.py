@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS Y COLORES DEL CALENDARIO ---
+# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO + THICK FONT) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
@@ -28,22 +28,23 @@ st.markdown("""
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
     
-    /* Forzar el grosor y color base de los números en los botones */
+    /* Forzar el grosor del texto dentro del botón del calendario */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
         font-weight: 900 !important;
-        font-size: 1.15rem !important;
-        color: #2C3E50 !important; /* Color predeterminado para Libres (0 pacientes) */
+        font-size: 1.2rem !important;
     }
     
     /* MAGIA PARA CELULARES (VERTICAL) */
     @media (max-width: 768px) {
+        /* Configuración de la cuadrícula del calendario para evitar que se aplaste */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
             display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
         }
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
         }
+        /* Botones del calendario optimizados al máximo */
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
             padding: 0px !important; min-height: 45px !important; border-radius: 6px !important;
         }
@@ -190,27 +191,17 @@ if st.session_state.app_vista == "calendario":
                 cant_pacs = mapa_pacientes_cal.get(fecha_iter_str, 0)
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # Texto limpio sin etiquetas mal interpretadas
-                texto_boton = str(day)
+                # COLOR EN EL TEXTO USANDO MARKDOWN NATIVO (100% Compatible y Limpio)
+                if is_today:
+                    texto_boton = f"**{day}**"
+                else:
+                    if cant_pacs == 0: texto_boton = f":green[**{day}**]"
+                    elif cant_pacs == 1: texto_boton = f":blue[**{day}**]"
+                    elif cant_pacs == 2: texto_boton = f":orange[**{day}**]"
+                    else: texto_boton = f":red[**{day}**]"
 
-                # Si es hoy, botón rojo primario. Si no, botón normal con estilo de color personalizado según los pacientes
                 btn_type = "primary" if is_today else "secondary"
                 
-                if not is_today and cant_pacs > 0:
-                    if cant_pacs == 1: color_txt = "#2ecc71" # Verde
-                    elif cant_pacs == 2: color_txt = "#3498db" # Azul
-                    elif cant_pacs == 3: color_txt = "#FF8C00" # Naranja Frutal
-                    else: color_txt = "#FF0000" # Rojo Fuerte
-                    
-                    # Inyectamos estilo dinámico por botón usando Markdown avanzado de Streamlit
-                    cols[i].markdown(f"""
-                    <style>
-                    div[data-testid="stHorizontalBlock"] button[key="d_{año_act}_{mes_act}_{day}"] p {{
-                        color: {color_txt} !important;
-                    }}
-                    </style>
-                    """, unsafe_allow_html=True)
-
                 if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
@@ -220,10 +211,10 @@ if st.session_state.app_vista == "calendario":
     # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #FF8C00;'>●</span> 3+ Pacientes
+        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1330,7 +1321,7 @@ else:
                                 guardar_tabla("Clinica", df_full_clinica_hist)
                                 
                                 if ejecutar_barrido_billeteras():
-                                    st.toast("⛽ 👋 El Tanque Mágico se activó tras tus ediciones!")
+                                    st.toast("⛽ ¡El Tanque Mágico se activó tras tus ediciones!")
                                     
                                 st.success("✅ ¡Historial de pagos actualizado!")
                                 time.sleep(1.5)
@@ -1590,7 +1581,7 @@ else:
 
                         guardar_tabla("Clinica", df_full_clinica_dash)
                         if ejecutar_barrido_billeteras():
-                            st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
+                            st.toast("⛽ ¡El Tanque Mágico descontó sesiones impagas automáticamente!")
                         st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
                         time.sleep(1.5)
                         st.rerun()
