@@ -80,7 +80,9 @@ def conectar_bd():
     ]
     creds = Credentials.from_service_account_info(credenciales_json, scopes=scopes)
     cliente = gspread.authorize(creds)
+    
     doc_kine = cliente.open_by_url("https://docs.google.com/spreadsheets/d/1UWyFJrlYcP_PK4fVYVPxbARIobNl4p8DuQ8OgyNU6aA/edit")
+    
     return doc_kine, creds
 
 try: 
@@ -128,7 +130,12 @@ def parse_dinero(val):
 
 # --- CÁLCULO DE IMPUESTOS SII CHILE LEY 21.133 ---
 def obtener_tasa_sii(anio):
-    tasas = {2024: 0.1375, 2025: 0.1450, 2026: 0.1525, 2027: 0.1600}
+    tasas = {
+        2024: 0.1375, 
+        2025: 0.1450, 
+        2026: 0.1525, 
+        2027: 0.1600, 
+    }
     if anio < 2024: return 0.13
     if anio >= 2028: return 0.17
     return tasas.get(anio, 0.1525)
@@ -224,13 +231,13 @@ if st.session_state.app_vista == "calendario":
                 # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada
+    # Leyenda visual renovada y 100% ALINEADA a los colores
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2C3E50;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #2ecc71;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #ff9f43;'>●</span> 3+ Pacientes
+        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
+        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
@@ -1131,8 +1138,8 @@ else:
             if exito1:
                 # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
                 if ejecutar_barrido_billeteras():
-                    st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
-                        
+                    st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
+                    
             if exito1 and exito2:
                 st.success("¡Agenda guardada y Tanque de Bencina sincronizado!")
                 time.sleep(1.5)
