@@ -21,7 +21,7 @@ st.markdown("""
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Configuración por defecto para PC de la cuadrícula de 7 columnas exactas */
+    /* Configuración por defecto para PC de la cuadrícula de 7 columnas */
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 900 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
@@ -41,7 +41,7 @@ st.markdown("""
         pointer-events: none !important;
     }
     
-    /* MAGIA PARA CELULARES (VERTICAL) SOLO PARA LA GRILLA DE 7 MESES */
+    /* MAGIA PARA CELULARES (VERTICAL) */
     @media (max-width: 768px) {
         div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) {
             display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
@@ -197,9 +197,7 @@ if st.session_state.app_vista == "calendario":
             for _, r in df_f.iterrows():
                 hora_corta = r['Hora_limpia']
                 paciente_corto = str(r['Paciente']).strip()
-                # USAMOS VIÑETA EN LUGAR DE EMOJI PARA QUE STREAMLIT NO LO ROBE COMO ICONO
                 lista_pacs.append(f"• {hora_corta} ➔ {paciente_corto}")
-            # Se usan dos espacios y un salto de línea para mantener todo en el mismo párrafo
             mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
@@ -733,6 +731,7 @@ else:
                 st.rerun()
                 
         df_sem_clinica = cargar_tabla("Clinica")
+        df_sem_personal = cargar_tabla("Personal") 
         
         # El truco del 8vo elemento invisible para que se apile verticalmente en celular sin romper el mes
         cols_sem = st.columns([1, 1, 1, 1, 1, 1, 1, 0.01])
@@ -742,7 +741,6 @@ else:
             dia_actual = lunes + timedelta(days=i)
             dia_str = dia_actual.strftime("%Y-%m-%d")
             es_hoy_sem = (dia_actual == date.today())
-            es_sel_sem = (dia_actual == st.session_state.app_fecha_sel)
             
             with cols_sem[i]:
                 btn_type = "primary" if es_hoy_sem else "secondary"
@@ -750,15 +748,41 @@ else:
                     st.session_state.app_fecha_sel = dia_actual
                     st.rerun()
                     
+                eventos_del_dia = []
+                
+                # 1. Cargar Clínica
                 if not df_sem_clinica.empty and 'Fecha' in df_sem_clinica.columns:
-                    df_dia_f = df_sem_clinica[(df_sem_clinica['Fecha'] == dia_str) & (df_sem_clinica['Paciente'].astype(str).str.strip() != "") & (df_sem_clinica['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
-                    
-                    if not df_dia_f.empty:
-                        for _, row_f in df_dia_f.sort_values('Hora').iterrows():
-                            hora_c = str(row_f['Hora']).replace('🔴', '').strip()
-                            pac_c = str(row_f['Paciente']).strip()
-                            mot_c = str(row_f['Detalle / Motivo']).strip()
+                    df_dia_c = df_sem_clinica[(df_sem_clinica['Fecha'] == dia_str) & (df_sem_clinica['Paciente'].astype(str).str.strip() != "") & (df_sem_clinica['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+                    for _, row_c in df_dia_c.iterrows():
+                        hora_raw = str(row_c['Hora']).replace('🔴', '').strip()
+                        eventos_del_dia.append({
+                            'hora': hora_raw,
+                            'tipo': 'clinica',
+                            'texto': str(row_c['Paciente']).strip(),
+                            'motivo': str(row_c['Detalle / Motivo']).strip()
+                        })
+                        
+                # 2. Cargar Personal
+                if not df_sem_personal.empty and 'Fecha' in df_sem_personal.columns:
+                    df_dia_p = df_sem_personal[(df_sem_personal['Fecha'] == dia_str) & (df_sem_personal['Actividad'].astype(str).str.strip() != "")]
+                    for _, row_p in df_dia_p.iterrows():
+                        actividad = str(row_p['Actividad']).strip()
+                        if not actividad.startswith("🩺 Atendiendo"):
+                            hora_raw = str(row_p['Hora']).replace('🔴', '').strip()
+                            eventos_del_dia.append({
+                                'hora': hora_raw,
+                                'tipo': 'personal',
+                                'texto': actividad,
+                                'categoria': str(row_p['Categoría']).strip()
+                            })
                             
+                # 3. Mostrar combinados y ordenados por hora cronológicamente
+                if eventos_del_dia:
+                    eventos_del_dia.sort(key=lambda x: x['hora'])
+                    
+                    for ev in eventos_del_dia:
+                        if ev['tipo'] == 'clinica':
+                            mot_c = ev['motivo']
                             if mot_c == "Pauta Online 💻": icon, color_borde = "💻", "#9b59b6"
                             elif mot_c == "Gimnasio 🏋️": icon, color_borde = "🏋️", "#e67e22"
                             elif mot_c == "Personal / Trámite 🛑": icon, color_borde = "🛑", "#e74c3c"
@@ -766,12 +790,25 @@ else:
                             
                             st.markdown(f"""
                             <div style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
-                                <strong style='color: #2C3E50;'>{hora_c}</strong><br>
-                                <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {pac_c}</span>
+                                <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
+                                <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {ev['texto']}</span>
                             </div>
                             """, unsafe_allow_html=True)
-                    else:
-                        st.markdown("<div style='font-size: 0.9rem; color: #bdc3c7; text-align: center; margin-top: 15px; margin-bottom: 15px;'>Libre 🟢</div>", unsafe_allow_html=True)
+                        else:
+                            cat = ev.get('categoria', '')
+                            if cat == "Ocio": icon, color_borde = "🎮", "#f1c40f"
+                            elif cat == "Salud": icon, color_borde = "⚕️", "#2ecc71"
+                            elif cat == "Mascota": icon, color_borde = "🐕", "#d35400"
+                            elif cat == "Tesis Magíster": icon, color_borde = "🎓", "#8e44ad"
+                            elif cat == "Proyecto Sustancia X": icon, color_borde = "🧪", "#1abc9c"
+                            else: icon, color_borde = "📌", "#7f8c8d"
+                            
+                            st.markdown(f"""
+                            <div style='font-size: 0.85rem; line-height: 1.3; background: #fdfbf7; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 1px solid #eee; border-top: 1px solid #eee; border-bottom: 1px solid #eee;'>
+                                <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
+                                <span style='color: #95a5a6; font-size: 0.75rem; font-style: italic;'>{icon} {ev['texto']}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
                 else:
                     st.markdown("<div style='font-size: 0.9rem; color: #bdc3c7; text-align: center; margin-top: 15px; margin-bottom: 15px;'>Libre 🟢</div>", unsafe_allow_html=True)
 
