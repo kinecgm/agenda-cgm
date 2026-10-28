@@ -226,10 +226,9 @@ if st.session_state.app_vista == "calendario":
                     st.session_state.app_vista = "dia"
                     st.rerun()
             else: 
-                # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada (CORREGIDA CON LOS COLORES REALES)
+    # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
         <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
@@ -242,7 +241,6 @@ if st.session_state.app_vista == "calendario":
     # --- PANEL MÓVIL: RESUMEN RÁPIDO ORDENADO POR SEMANAS ---
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
     with st.expander("📱 Resumen de Pacientes (Vista Celular)"):
-        # Generar las pestañas basadas en las semanas reales del mes
         cal_semanas = calendar.monthcalendar(año_act, mes_act)
         nombres_tabs = []
         for i, semana in enumerate(cal_semanas):
@@ -796,11 +794,13 @@ else:
                             """, unsafe_allow_html=True)
                         else:
                             cat = ev.get('categoria', '')
-                            if cat == "Ocio": icon, color_borde = "🎮", "#f1c40f"
+                            if cat == "Compras": icon, color_borde = "🛒", "#f1c40f"
                             elif cat == "Salud": icon, color_borde = "⚕️", "#2ecc71"
+                            elif cat == "Gimnasio": icon, color_borde = "🏋️", "#e67e22"
                             elif cat == "Mascota": icon, color_borde = "🐕", "#d35400"
-                            elif cat == "Tesis Magíster": icon, color_borde = "🎓", "#8e44ad"
-                            elif cat == "Proyecto Sustancia X": icon, color_borde = "🧪", "#1abc9c"
+                            elif cat == "Estudios": icon, color_borde = "📚", "#8e44ad"
+                            elif cat == "Tiempo para mí": icon, color_borde = "☕", "#34495e"
+                            elif cat == "Clínica": icon, color_borde = "🩺", "#3498db"
                             else: icon, color_borde = "📌", "#7f8c8d"
                             
                             st.markdown(f"""
@@ -1258,7 +1258,7 @@ else:
                     duracion_b = st.selectbox("Duración:", ["30 minutos", "60 minutos (1 hora)", "90 minutos (1.5 horas)", "120 minutos (2 horas)", "180 minutos (3 horas)", "240 minutos (4 horas)"])
                 with col_b2:
                     act_b = st.text_input("Actividad:")
-                    cat_b = st.selectbox("Categoría:", ["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"], key="cat_b")
+                    cat_b = st.selectbox("Categoría:", ["Compras", "Salud", "Gimnasio", "Mascota", "Estudios", "Tiempo para mí", "Clínica", "General", "-"], key="cat_b")
                 with col_b3:
                     st.markdown("<br><br>", unsafe_allow_html=True)
                     btn_aplicar_bloqueo = st.button("🚀 Aplicar Bloqueo", use_container_width=True)
@@ -1318,7 +1318,7 @@ else:
             column_config={
                 "Hora": st.column_config.TextColumn("Hora", disabled=True),
                 "Actividad": st.column_config.TextColumn("Actividad"),
-                "Categoría": st.column_config.SelectboxColumn("Categoría", options=["Tesis Magíster", "Proyecto Sustancia X", "Mascota", "Salud", "Ocio", "Trámites", "Clínica", "General", "-"]),
+                "Categoría": st.column_config.SelectboxColumn("Categoría", options=["Compras", "Salud", "Gimnasio", "Mascota", "Estudios", "Tiempo para mí", "Clínica", "General", "-"]),
             }
         )
         if btn_guardar_personal:
