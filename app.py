@@ -21,39 +21,39 @@ st.markdown("""
     .titulo-principal { color: #2C3E50; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 800; font-size: 2.5rem; margin-bottom: -10px; }
     .subtitulo { color: #18BC9C; text-align: center; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-weight: 600; font-size: 1.2rem; margin-bottom: 2rem; }
     
-    /* Configuración por defecto para PC de la cuadrícula de 7 columnas */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+    /* Configuración por defecto para PC de la cuadrícula de 7 columnas exactas */
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button {
         width: 100% !important; padding: 12px 0px !important; border-radius: 8px !important;
         font-size: 1rem !important; font-weight: 900 !important; box-shadow: 0px 1px 3px rgba(0,0,0,0.1) !important;
         border: 1px solid #E0E6ED !important; min-height: 45px !important;
     }
     
     /* Forzar el grosor del texto dentro del botón del calendario sin bloquear el color */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button p,
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button strong {
         font-weight: 900 !important;
         font-size: 1.2rem !important;
     }
     
     /* MAGIA PARA ALINEAR LA GRILLA: Ocultar los botones "fantasma" de los días vacíos */
-    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button[disabled] {
+    div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button[disabled] {
         opacity: 0 !important;
         pointer-events: none !important;
     }
     
-    /* MAGIA PARA CELULARES (VERTICAL) */
+    /* MAGIA PARA CELULARES (VERTICAL) SOLO PARA LA GRILLA DE 7 MESES */
     @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) {
             display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 4px !important; width: 100% !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) > div[data-testid="column"] {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) > div[data-testid="column"] {
             width: 100% !important; min-width: 0 !important; padding: 0 !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button {
             padding: 0px !important; min-height: 45px !important; border-radius: 6px !important;
         }
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button p,
-        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7)) button strong {
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button p,
+        div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button strong {
             font-size: 1.25rem !important; font-weight: 900 !important; margin: 0 !important; 
             overflow: visible !important; text-overflow: clip !important; white-space: normal !important;
         }
@@ -231,7 +231,7 @@ if st.session_state.app_vista == "calendario":
                 # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada y 100% ALINEADA a los colores
+    # Leyenda visual renovada (CORREGIDA CON LOS COLORES REALES)
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
         <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
@@ -713,13 +713,72 @@ else:
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
 
-    # --- PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["🩺 Calendario", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
+    # --- PESTAÑAS (ORDENADAS SEGÚN SOLICITUD) ---
+    tab_semana, tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Calendario Semanal", "🩺 Día a Día", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
+
+    with tab_semana:
+        lunes = st.session_state.app_fecha_sel - timedelta(days=st.session_state.app_fecha_sel.weekday())
+        domingo = lunes + timedelta(days=6)
+        
+        col_w1, col_w2, col_w3 = st.columns([1, 2, 1])
+        with col_w1:
+            if st.button("⬅️ Semana Ant.", use_container_width=True):
+                st.session_state.app_fecha_sel -= timedelta(days=7)
+                st.rerun()
+        with col_w2:
+            st.markdown(f"<h3 style='text-align: center; margin-top: 0; color: #2C3E50;'>Semana del {lunes.strftime('%d/%m')} al {domingo.strftime('%d/%m')}</h3>", unsafe_allow_html=True)
+        with col_w3:
+            if st.button("Sig. Semana ➡️", use_container_width=True):
+                st.session_state.app_fecha_sel += timedelta(days=7)
+                st.rerun()
+                
+        df_sem_clinica = cargar_tabla("Clinica")
+        
+        # El truco del 8vo elemento invisible para que se apile verticalmente en celular sin romper el mes
+        cols_sem = st.columns([1, 1, 1, 1, 1, 1, 1, 0.01])
+        dias_nombres_cortos = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        
+        for i in range(7):
+            dia_actual = lunes + timedelta(days=i)
+            dia_str = dia_actual.strftime("%Y-%m-%d")
+            es_hoy_sem = (dia_actual == date.today())
+            es_sel_sem = (dia_actual == st.session_state.app_fecha_sel)
+            
+            with cols_sem[i]:
+                btn_type = "primary" if es_hoy_sem else "secondary"
+                if st.button(f"{dias_nombres_cortos[i]} {dia_actual.strftime('%d')}", key=f"btn_sem_{dia_str}", use_container_width=True, type=btn_type):
+                    st.session_state.app_fecha_sel = dia_actual
+                    st.rerun()
+                    
+                if not df_sem_clinica.empty and 'Fecha' in df_sem_clinica.columns:
+                    df_dia_f = df_sem_clinica[(df_sem_clinica['Fecha'] == dia_str) & (df_sem_clinica['Paciente'].astype(str).str.strip() != "") & (df_sem_clinica['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+                    
+                    if not df_dia_f.empty:
+                        for _, row_f in df_dia_f.sort_values('Hora').iterrows():
+                            hora_c = str(row_f['Hora']).replace('🔴', '').strip()
+                            pac_c = str(row_f['Paciente']).strip()
+                            mot_c = str(row_f['Detalle / Motivo']).strip()
+                            
+                            if mot_c == "Pauta Online 💻": icon, color_borde = "💻", "#9b59b6"
+                            elif mot_c == "Gimnasio 🏋️": icon, color_borde = "🏋️", "#e67e22"
+                            elif mot_c == "Personal / Trámite 🛑": icon, color_borde = "🛑", "#e74c3c"
+                            else: icon, color_borde = "🩺", "#3498db"
+                            
+                            st.markdown(f"""
+                            <div style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                                <strong style='color: #2C3E50;'>{hora_c}</strong><br>
+                                <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {pac_c}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.markdown("<div style='font-size: 0.9rem; color: #bdc3c7; text-align: center; margin-top: 15px; margin-bottom: 15px;'>Libre 🟢</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='font-size: 0.9rem; color: #bdc3c7; text-align: center; margin-top: 15px; margin-bottom: 15px;'>Libre 🟢</div>", unsafe_allow_html=True)
 
     with tab1:
         col_t1, col_t2 = st.columns([3, 1])
         with col_t1: 
-            st.header(f"📅 Agenda Clínica - {fecha_visual}")
+            st.header(f"📅 Agenda Diaria - {fecha_visual}")
             if es_hoy:
                 try:
                     ahora_chile = pd.Timestamp.now('America/Santiago')
@@ -1138,8 +1197,8 @@ else:
             if exito1:
                 # El Tanque Mágico se activa automáticamente GOTA A GOTA (no toca el futuro)
                 if ejecutar_barrido_billeteras():
-                    st.toast("⛽ ¡El Tanque Mágico cubrió automáticamente sesiones impagas!")
-                    
+                    st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
+                        
             if exito1 and exito2:
                 st.success("¡Agenda guardada y Tanque de Bencina sincronizado!")
                 time.sleep(1.5)
