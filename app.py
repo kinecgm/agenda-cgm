@@ -197,7 +197,9 @@ if st.session_state.app_vista == "calendario":
             for _, r in df_f.iterrows():
                 hora_corta = r['Hora_limpia']
                 paciente_corto = str(r['Paciente']).strip()
+                # USAMOS VIÑETA EN LUGAR DE EMOJI PARA QUE STREAMLIT NO LO ROBE COMO ICONO
                 lista_pacs.append(f"• {hora_corta} ➔ {paciente_corto}")
+            # Se usan dos espacios y un salto de línea para mantener todo en el mismo párrafo
             mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
@@ -226,9 +228,10 @@ if st.session_state.app_vista == "calendario":
                     st.session_state.app_vista = "dia"
                     st.rerun()
             else: 
+                # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada
+    # Leyenda visual renovada (CORREGIDA CON LOS COLORES REALES)
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
         <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
@@ -241,6 +244,7 @@ if st.session_state.app_vista == "calendario":
     # --- PANEL MÓVIL: RESUMEN RÁPIDO ORDENADO POR SEMANAS ---
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
     with st.expander("📱 Resumen de Pacientes (Vista Celular)"):
+        # Generar las pestañas basadas en las semanas reales del mes
         cal_semanas = calendar.monthcalendar(año_act, mes_act)
         nombres_tabs = []
         for i, semana in enumerate(cal_semanas):
@@ -396,6 +400,20 @@ else:
         mapa = {}
         for nombre, valor in zip(df_fichas['Paciente'].astype(str).str.strip().str.upper(), df_fichas['Valor Pauta']):
             mapa[nombre] = parse_dinero(valor)
+        return mapa
+        
+    def obtener_info_completa_pacientes():
+        df_fichas_temp = cargar_tabla("Fichas")
+        if df_fichas_temp.empty or 'Paciente' not in df_fichas_temp.columns: return {}
+        mapa = {}
+        for _, r in df_fichas_temp.iterrows():
+            paciente_str = str(r.get('Paciente', '')).strip().upper()
+            if paciente_str:
+                mapa[paciente_str] = {
+                    'edad': str(r.get('Edad', '')).strip().replace('"', "'"),
+                    'diag': str(r.get('Diagnóstico', '')).strip().replace('"', "'"),
+                    'tel': str(r.get('Teléfono', '')).strip().replace('"', "'")
+                }
         return mapa
 
     def construir_link_whatsapp(telefono, fecha_visual_str, hora_str):
@@ -730,6 +748,7 @@ else:
                 
         df_sem_clinica = cargar_tabla("Clinica")
         df_sem_personal = cargar_tabla("Personal") 
+        mapa_info_pacientes = obtener_info_completa_pacientes() 
         
         # El truco del 8vo elemento invisible para que se apile verticalmente en celular sin romper el mes
         cols_sem = st.columns([1, 1, 1, 1, 1, 1, 1, 0.01])
@@ -781,13 +800,21 @@ else:
                     for ev in eventos_del_dia:
                         if ev['tipo'] == 'clinica':
                             mot_c = ev['motivo']
+                            pac_n = str(ev['texto']).strip()
+                            info = mapa_info_pacientes.get(pac_n.upper(), {})
+                            edad_tt = info.get('edad', '-') or '-'
+                            diag_tt = info.get('diag', '-') or '-'
+                            tel_tt = info.get('tel', '-') or '-'
+                            
+                            tooltip_text = f"Paciente: {pac_n}&#10;Edad: {edad_tt}&#10;Dg: {diag_tt}&#10;Tel: {tel_tt}"
+                            
                             if mot_c == "Pauta Online 💻": icon, color_borde = "💻", "#9b59b6"
                             elif mot_c == "Gimnasio 🏋️": icon, color_borde = "🏋️", "#e67e22"
                             elif mot_c == "Personal / Trámite 🛑": icon, color_borde = "🛑", "#e74c3c"
                             else: icon, color_borde = "🩺", "#3498db"
                             
                             st.markdown(f"""
-                            <div style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>
+                            <div title="{tooltip_text}" style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: help;'>
                                 <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
                                 <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {ev['texto']}</span>
                             </div>
@@ -803,8 +830,10 @@ else:
                             elif cat == "Clínica": icon, color_borde = "🩺", "#3498db"
                             else: icon, color_borde = "📌", "#7f8c8d"
                             
+                            tooltip_pers = f"Actividad: {ev['texto']}&#10;Categoría: {cat}"
+                            
                             st.markdown(f"""
-                            <div style='font-size: 0.85rem; line-height: 1.3; background: #fdfbf7; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 1px solid #eee; border-top: 1px solid #eee; border-bottom: 1px solid #eee;'>
+                            <div title="{tooltip_pers}" style='font-size: 0.85rem; line-height: 1.3; background: #fdfbf7; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 1px solid #eee; border-top: 1px solid #eee; border-bottom: 1px solid #eee; cursor: help;'>
                                 <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
                                 <span style='color: #95a5a6; font-size: 0.75rem; font-style: italic;'>{icon} {ev['texto']}</span>
                             </div>
