@@ -14,7 +14,7 @@ from streamlit_geolocation import streamlit_geolocation
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(page_title="Agenda Kinesiología CGM", page_icon="📅", layout="wide")
 
-# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO + THICK FONT + FANTASMAS) ---
+# --- ESTILOS PERSONALIZADOS Y RESPONSIVOS (MOBILE FIX DEFINITIVO + THICK FONT + FANTASMAS + TOOLTIPS) ---
 st.markdown("""
 <style>
     .block-container { padding-top: 2rem !important; padding-bottom: 2rem !important; }
@@ -39,6 +39,49 @@ st.markdown("""
     div[data-testid="stHorizontalBlock"]:has(> div:nth-child(7):last-child) button[disabled] {
         opacity: 0 !important;
         pointer-events: none !important;
+    }
+
+    /* SISTEMA DE BURBUJAS FLOTANTES INSTANTÁNEAS (TOOLTIPS CSS) */
+    .kine-tooltip {
+        position: relative;
+        display: block;
+    }
+    .kine-tooltip .kine-tooltiptext {
+        visibility: hidden;
+        width: max-content;
+        max-width: 250px;
+        background-color: #2C3E50;
+        color: #ecf0f1;
+        text-align: left;
+        border-radius: 8px;
+        padding: 10px 14px;
+        position: absolute;
+        z-index: 999999;
+        bottom: 110%;
+        left: 50%;
+        transform: translateX(-50%);
+        opacity: 0;
+        transition: opacity 0.2s;
+        font-size: 0.85rem;
+        box-shadow: 0px 6px 12px rgba(0,0,0,0.3);
+        pointer-events: none;
+        line-height: 1.4;
+    }
+    /* La flechita de la burbuja */
+    .kine-tooltip .kine-tooltiptext::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        margin-left: -6px;
+        border-width: 6px;
+        border-style: solid;
+        border-color: #2C3E50 transparent transparent transparent;
+    }
+    /* Activar al pasar el mouse */
+    .kine-tooltip:hover .kine-tooltiptext {
+        visibility: visible;
+        opacity: 1;
     }
     
     /* MAGIA PARA CELULARES (VERTICAL) */
@@ -197,9 +240,7 @@ if st.session_state.app_vista == "calendario":
             for _, r in df_f.iterrows():
                 hora_corta = r['Hora_limpia']
                 paciente_corto = str(r['Paciente']).strip()
-                # USAMOS VIÑETA EN LUGAR DE EMOJI PARA QUE STREAMLIT NO LO ROBE COMO ICONO
                 lista_pacs.append(f"• {hora_corta} ➔ {paciente_corto}")
-            # Se usan dos espacios y un salto de línea para mantener todo en el mismo párrafo
             mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
@@ -212,7 +253,6 @@ if st.session_state.app_vista == "calendario":
                 detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # APLICACIÓN DE COLORES NATIVOS MARKDOWN
                 if is_today:
                     texto_boton = f"**{day}**"
                 else:
@@ -228,10 +268,9 @@ if st.session_state.app_vista == "calendario":
                     st.session_state.app_vista = "dia"
                     st.rerun()
             else: 
-                # EL BOTÓN FANTASMA QUE ALINEA LA GRILLA PERFECTAMENTE
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada (CORREGIDA CON LOS COLORES REALES)
+    # Leyenda visual renovada
     st.markdown("""
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
         <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
@@ -244,7 +283,6 @@ if st.session_state.app_vista == "calendario":
     # --- PANEL MÓVIL: RESUMEN RÁPIDO ORDENADO POR SEMANAS ---
     st.markdown("<hr style='margin: 15px 0px;'>", unsafe_allow_html=True)
     with st.expander("📱 Resumen de Pacientes (Vista Celular)"):
-        # Generar las pestañas basadas en las semanas reales del mes
         cal_semanas = calendar.monthcalendar(año_act, mes_act)
         nombres_tabs = []
         for i, semana in enumerate(cal_semanas):
@@ -793,7 +831,7 @@ else:
                                 'categoria': str(row_p['Categoría']).strip()
                             })
                             
-                # 3. Mostrar combinados y ordenados por hora cronológicamente
+                # 3. Mostrar combinados y ordenados por hora con TOOLTIPS CSS NATIVOS
                 if eventos_del_dia:
                     eventos_del_dia.sort(key=lambda x: x['hora'])
                     
@@ -801,12 +839,14 @@ else:
                         if ev['tipo'] == 'clinica':
                             mot_c = ev['motivo']
                             pac_n = str(ev['texto']).strip()
-                            info = mapa_info_pacientes.get(pac_n.upper(), {})
-                            edad_tt = info.get('edad', '-') or '-'
-                            diag_tt = info.get('diag', '-') or '-'
-                            tel_tt = info.get('tel', '-') or '-'
                             
-                            tooltip_text = f"Paciente: {pac_n}&#10;Edad: {edad_tt}&#10;Dg: {diag_tt}&#10;Tel: {tel_tt}"
+                            # Recuperar información segura
+                            info = mapa_info_pacientes.get(pac_n.upper(), {})
+                            edad_tt = info.get('edad', '') if info.get('edad', '') else '-'
+                            diag_tt = info.get('diag', '') if info.get('diag', '') else '-'
+                            tel_tt = info.get('tel', '') if info.get('tel', '') else '-'
+                            
+                            tooltip_html = f"<strong>👤 {pac_n}</strong><br>🎂 Edad: {edad_tt}<br>🩺 Dg: {diag_tt}<br>📞 Tel: {tel_tt}"
                             
                             if mot_c == "Pauta Online 💻": icon, color_borde = "💻", "#9b59b6"
                             elif mot_c == "Gimnasio 🏋️": icon, color_borde = "🏋️", "#e67e22"
@@ -814,9 +854,12 @@ else:
                             else: icon, color_borde = "🩺", "#3498db"
                             
                             st.markdown(f"""
-                            <div title="{tooltip_text}" style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: help;'>
-                                <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
-                                <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {ev['texto']}</span>
+                            <div class="kine-tooltip">
+                                <div style='font-size: 0.85rem; line-height: 1.3; background: white; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); cursor: help;'>
+                                    <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
+                                    <span style='color: #7f8c8d; font-size: 0.75rem;'>{icon} {ev['texto']}</span>
+                                </div>
+                                <div class="kine-tooltiptext">{tooltip_html}</div>
                             </div>
                             """, unsafe_allow_html=True)
                         else:
@@ -830,12 +873,15 @@ else:
                             elif cat == "Clínica": icon, color_borde = "🩺", "#3498db"
                             else: icon, color_borde = "📌", "#7f8c8d"
                             
-                            tooltip_pers = f"Actividad: {ev['texto']}&#10;Categoría: {cat}"
+                            tooltip_html = f"<strong>📌 Actividad:</strong><br>{ev['texto']}<br><br><strong>🏷️ Categoría:</strong><br>{cat}"
                             
                             st.markdown(f"""
-                            <div title="{tooltip_pers}" style='font-size: 0.85rem; line-height: 1.3; background: #fdfbf7; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 1px solid #eee; border-top: 1px solid #eee; border-bottom: 1px solid #eee; cursor: help;'>
-                                <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
-                                <span style='color: #95a5a6; font-size: 0.75rem; font-style: italic;'>{icon} {ev['texto']}</span>
+                            <div class="kine-tooltip">
+                                <div style='font-size: 0.85rem; line-height: 1.3; background: #fdfbf7; padding: 8px; border-radius: 6px; border-left: 4px solid {color_borde}; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-right: 1px solid #eee; border-top: 1px solid #eee; border-bottom: 1px solid #eee; cursor: help;'>
+                                    <strong style='color: #2C3E50;'>{ev['hora']}</strong><br>
+                                    <span style='color: #95a5a6; font-size: 0.75rem; font-style: italic;'>{icon} {ev['texto']}</span>
+                                </div>
+                                <div class="kine-tooltiptext">{tooltip_html}</div>
                             </div>
                             """, unsafe_allow_html=True)
                 else:
@@ -1099,7 +1145,7 @@ else:
                             st.markdown("🎯 **Ir directamente al día para editar:**")
                             col_b1, col_b2 = st.columns([3, 1])
                             with col_b1:
-                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
+                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrowsiterrows()]
                                 sesion_a_editar = st.selectbox("Seleccionar sesión", opciones_sesiones, label_visibility="collapsed")
                             with col_b2:
                                 if st.button("🚀 Viajar al Día", use_container_width=True):
@@ -1194,8 +1240,8 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
-                "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
+                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
+                "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"])
             }
         )
         if btn_guardar_clinica:
