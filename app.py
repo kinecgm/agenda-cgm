@@ -1786,7 +1786,7 @@ else:
                         if 'Boleta' not in df_full_clinica_dash.columns: df_full_clinica_dash['Boleta'] = "-"
                         
                         for index, row in df_editado_dash.iterrows():
-                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").str.strip()
+                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
                             mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
                                            (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
                                            (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
