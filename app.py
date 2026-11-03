@@ -1001,7 +1001,7 @@ else:
                 with col_m1:
                     m_paciente = st.text_input("Paciente:")
                     m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
-                    m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
+                    m_sesiones = st.number_input("N° de sessions:", min_value=1, value=10, step=1)
                 with col_m2:
                     m_fecha_inicio = st.date_input("Inicio:")
                     m_hora = st.selectbox("Hora:", horas_30_min)
@@ -1079,7 +1079,7 @@ else:
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
-           with tab_re:
+            with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
@@ -1094,31 +1094,26 @@ else:
                     btn_reagendar = st.button("🚀 Ejecutar", use_container_width=True)
                 
                 if btn_reagendar and cita_origen != "-- Selecciona --":
-                    hora_origen = cita_origen.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").str.strip()
+                    hora_origen = cita_origen.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").strip()
                     
-                    # Buscar la cita de origen en el df actual (df_clinica)
                     idx_origen_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
                     
                     if idx_origen_list:
                         fila_origen = df_clinica.iloc[idx_origen_list[0]]
                         f_dest_str = fecha_destino.strftime("%Y-%m-%d")
                         
-                        # Cargar el día de destino
                         df_clinica_dest = cargar_datos_clinica(f_dest_str)
                         
-                        # Buscar la hora exacta en el df de destino
                         idx_dest_list = df_clinica_dest.index[df_clinica_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()
                         
                         if idx_dest_list:
                             idx_dest = idx_dest_list[0]
                             
-                            # Verificar si la hora destino está ocupada
                             paciente_dest = str(df_clinica_dest.at[idx_dest, 'Paciente']).strip()
                             if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
                                 st.error("⚠️ La hora de destino ya está ocupada.")
                             else:
                                 with st.spinner("Procesando..."):
-                                    # Copiar datos al destino
                                     df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
                                     df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
                                     df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
@@ -1127,11 +1122,9 @@ else:
                                     df_clinica_dest.at[idx_dest, 'Boleta'] = "-"
                                     df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
                                     
-                                    # Guardar el día de destino
                                     exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
                                     
                                     if exito_r and accion_reagendar == "Mover":
-                                        # Borrar la cita original del día actual
                                         idx_origen = idx_origen_list[0]
                                         df_clinica.at[idx_origen, 'Paciente'] = ""
                                         df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
@@ -1168,7 +1161,7 @@ else:
                             st.markdown("🎯 **Ir directamente al día para editar:**")
                             col_b1, col_b2 = st.columns([3, 1])
                             with col_b1:
-                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrowsiterrows()]
+                                opciones_sesiones = ["-- Elige una sesión --"] + [f"{r['Fecha']} a las {r['Hora']} ({r['Pago']})" for i, r in df_resumen.iterrows()]
                                 sesion_a_editar = st.selectbox("Seleccionar sesión", opciones_sesiones, label_visibility="collapsed")
                             with col_b2:
                                 if st.button("🚀 Viajar al Día", use_container_width=True):
@@ -1263,8 +1256,8 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
-                "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"])
+                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
+                "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
         if btn_guardar_clinica:
