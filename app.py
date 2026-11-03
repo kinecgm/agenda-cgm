@@ -1079,7 +1079,7 @@ else:
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
-            with tab_re:
+with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
@@ -1087,7 +1087,7 @@ else:
                     cita_origen = st.selectbox("Cita de hoy:", opciones_citas)
                     accion_reagendar = st.radio("Acción:", ["Mover", "Duplicar"])
                 with col_r2:
-                    fecha_destino = st.date_input("Nueva fecha:", value=st.session_state.app_fecha_sel + timedelta(days=1))
+                    fecha_destino = st.date_input("Nueva fecha:", value=st.session_state.app_fecha_sel)
                     hora_destino = st.selectbox("Nueva hora:", horas_30_min, key="hora_destino_reagendar")
                 with col_r3:
                     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -1095,46 +1095,55 @@ else:
                 
                 if btn_reagendar and cita_origen != "-- Selecciona --":
                     hora_origen = cita_origen.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").strip()
-                    
                     idx_origen_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
                     
                     if idx_origen_list:
                         fila_origen = df_clinica.iloc[idx_origen_list[0]]
                         f_dest_str = fecha_destino.strftime("%Y-%m-%d")
                         
-                        df_clinica_dest = cargar_datos_clinica(f_dest_str)
-                        
-                        idx_dest_list = df_clinica_dest.index[df_clinica_dest['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()
-                        
-                        if idx_dest_list:
-                            idx_dest = idx_dest_list[0]
+                        with st.spinner("Procesando reagendamiento..."):
+                            # ¿Es el mismo día o un día diferente?
+                            es_mismo_dia = (f_dest_str == fecha_str)
                             
-                            paciente_dest = str(df_clinica_dest.at[idx_dest, 'Paciente']).strip()
-                            if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
-                                st.error("⚠️ La hora de destino ya está ocupada.")
-                            else:
-                                with st.spinner("Procesando..."):
-                                    df_clinica_dest.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
-                                    df_clinica_dest.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
-                                    df_clinica_dest.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
-                                    df_clinica_dest.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
-                                    df_clinica_dest.at[idx_dest, 'Pago'] = "No pagada ❌"
-                                    df_clinica_dest.at[idx_dest, 'Boleta'] = "-"
-                                    df_clinica_dest.at[idx_dest, 'N° Sesión'] = "" 
+                            df_target = df_clinica if es_mismo_dia else cargar_datos_clinica(f_dest_str)
+                            idx_dest_list = df_target.index[df_target['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()
+                            
+                            if idx_dest_list:
+                                idx_dest = idx_dest_list[0]
+                                paciente_dest = str(df_target.at[idx_dest, 'Paciente']).strip()
+                                
+                                if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
+                                    st.error("⚠️ La hora de destino ya está ocupada.")
+                                else:
+                                    # 1. PEGAR EN EL DESTINO
+                                    df_target.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
+                                    df_target.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
+                                    df_target.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
+                                    df_target.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
+                                    df_target.at[idx_dest, 'Pago'] = "No pagada ❌"
+                                    df_target.at[idx_dest, 'Boleta'] = "-"
+                                    df_target.at[idx_dest, 'N° Sesión'] = "" 
                                     
-                                    exito_r = guardar_dia("Clinica", f_dest_str, df_clinica_dest)
-                                    
-                                    if exito_r and accion_reagendar == "Mover":
-                                        idx_origen = idx_origen_list[0]
-                                        df_clinica.at[idx_origen, 'Paciente'] = ""
-                                        df_clinica.at[idx_origen, 'Detalle / Motivo'] = "-"
-                                        df_clinica.at[idx_origen, 'Dirección'] = ""
-                                        df_clinica.at[idx_origen, 'Minutos de Viaje'] = 0
-                                        df_clinica.at[idx_origen, 'Pago'] = "-"
-                                        df_clinica.at[idx_origen, 'Boleta'] = "-"
-                                        df_clinica.at[idx_origen, 'N° Sesión'] = ""
-                                        guardar_dia("Clinica", fecha_str, df_clinica)
+                                    # 2. BORRAR DEL ORIGEN (SI ES MOVER)
+                                    if accion_reagendar == "Mover":
+                                        df_origen = df_target if es_mismo_dia else df_clinica
+                                        idx_orig = idx_origen_list[0]
+                                        df_origen.at[idx_orig, 'Paciente'] = ""
+                                        df_origen.at[idx_orig, 'Detalle / Motivo'] = "-"
+                                        df_origen.at[idx_orig, 'Dirección'] = ""
+                                        df_origen.at[idx_orig, 'Minutos de Viaje'] = 0
+                                        df_origen.at[idx_orig, 'Pago'] = "-"
+                                        df_origen.at[idx_orig, 'Boleta'] = "-"
+                                        df_origen.at[idx_orig, 'N° Sesión'] = ""
                                         
+                                    # 3. GUARDAR EN LA BASE DE DATOS
+                                    if es_mismo_dia:
+                                        exito_r = guardar_dia("Clinica", fecha_str, df_target)
+                                    else:
+                                        exito_r = guardar_dia("Clinica", f_dest_str, df_target)
+                                        if accion_reagendar == "Mover":
+                                            guardar_dia("Clinica", fecha_str, df_clinica)
+                                            
                                     if ejecutar_barrido_billeteras():
                                         st.toast("⛽ ¡El Tanque cubrió la reagendación automáticamente!")
                                         
@@ -1142,8 +1151,8 @@ else:
                                         st.success("✅ ¡Listo! La cita ha sido reagendada.")
                                         time.sleep(1)
                                         st.rerun()
-                        else:
-                            st.error(f"⚠️ No se encontró la hora {hora_destino} en el día destino.")
+                            else:
+                                st.error(f"⚠️ No se encontró la hora {hora_destino} en el día destino.")
 
         with st.expander("🔍 Buscador de Pacientes"):
             lista_pacientes_buscador = obtener_lista_pacientes()
