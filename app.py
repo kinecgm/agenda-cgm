@@ -1001,7 +1001,7 @@ else:
                 with col_m1:
                     m_paciente = st.text_input("Paciente:")
                     m_motivo = st.selectbox("Motivo:", ["Rehabilitación", "Entrenamiento", "Preventivo", "Pauta Online 💻"])
-                    m_sesiones = st.number_input("N° de sessions:", min_value=1, value=10, step=1)
+                    m_sesiones = st.number_input("N° de sesiones:", min_value=1, value=10, step=1)
                 with col_m2:
                     m_fecha_inicio = st.date_input("Inicio:")
                     m_hora = st.selectbox("Hora:", horas_30_min)
@@ -1050,8 +1050,8 @@ else:
                                                 sesiones_logradas += 1
                                                 time.sleep(0.3)
                                         else: fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
-                                fecha_iter += timedelta(days=1)
-                                dias_buscados += 1
+                                    fecha_iter += timedelta(days=1)
+                                    dias_buscados += 1
                                 
                             if sesiones_logradas > 0 and m_direccion.strip() != "":
                                 df_fichas_sync = cargar_tabla("Fichas")
@@ -1079,7 +1079,7 @@ else:
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
-with tab_re:
+            with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
@@ -1102,7 +1102,6 @@ with tab_re:
                         f_dest_str = fecha_destino.strftime("%Y-%m-%d")
                         
                         with st.spinner("Procesando reagendamiento..."):
-                            # ¿Es el mismo día o un día diferente?
                             es_mismo_dia = (f_dest_str == fecha_str)
                             
                             df_target = df_clinica if es_mismo_dia else cargar_datos_clinica(f_dest_str)
@@ -1115,7 +1114,6 @@ with tab_re:
                                 if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
                                     st.error("⚠️ La hora de destino ya está ocupada.")
                                 else:
-                                    # 1. PEGAR EN EL DESTINO
                                     df_target.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
                                     df_target.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
                                     df_target.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
@@ -1124,7 +1122,6 @@ with tab_re:
                                     df_target.at[idx_dest, 'Boleta'] = "-"
                                     df_target.at[idx_dest, 'N° Sesión'] = "" 
                                     
-                                    # 2. BORRAR DEL ORIGEN (SI ES MOVER)
                                     if accion_reagendar == "Mover":
                                         df_origen = df_target if es_mismo_dia else df_clinica
                                         idx_orig = idx_origen_list[0]
@@ -1136,7 +1133,6 @@ with tab_re:
                                         df_origen.at[idx_orig, 'Boleta'] = "-"
                                         df_origen.at[idx_orig, 'N° Sesión'] = ""
                                         
-                                    # 3. GUARDAR EN LA BASE DE DATOS
                                     if es_mismo_dia:
                                         exito_r = guardar_dia("Clinica", fecha_str, df_target)
                                     else:
@@ -1265,7 +1261,7 @@ with tab_re:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
+                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
