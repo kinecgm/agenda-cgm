@@ -1050,8 +1050,8 @@ else:
                                                 sesiones_logradas += 1
                                                 time.sleep(0.3)
                                         else: fechas_ocupadas.append(fecha_iter.strftime("%d/%m/%Y"))
-                                    fecha_iter += timedelta(days=1)
-                                    dias_buscados += 1
+                                fecha_iter += timedelta(days=1)
+                                dias_buscados += 1
                                 
                             if sesiones_logradas > 0 and m_direccion.strip() != "":
                                 df_fichas_sync = cargar_tabla("Fichas")
@@ -1079,7 +1079,7 @@ else:
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
-           with tab_re:
+            with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
@@ -1289,7 +1289,7 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
+                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
@@ -1835,7 +1835,7 @@ else:
                         if 'Boleta' not in df_full_clinica_dash.columns: df_full_clinica_dash['Boleta'] = "-"
                         
                         for index, row in df_editado_dash.iterrows():
-                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").strip()
+                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").str.strip()
                             mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
                                            (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
                                            (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
