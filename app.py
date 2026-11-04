@@ -1079,7 +1079,7 @@ else:
                         else: st.warning(f"⚠️ Solo se agendaron {sesiones_logradas}.")
                         st.rerun()
 
-            with tab_re:
+           with tab_re:
                 sesiones_activas = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 opciones_citas = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas.iterrows()]
                 col_r1, col_r2, col_r3 = st.columns(3)
@@ -1087,7 +1087,7 @@ else:
                     cita_origen = st.selectbox("Cita de hoy:", opciones_citas)
                     accion_reagendar = st.radio("Acción:", ["Mover", "Duplicar"])
                 with col_r2:
-                    fecha_destino = st.date_input("Nueva fecha:", value=st.session_state.app_fecha_sel)
+                    fecha_destino = st.date_input("Nueva fecha:", value=st.session_state.app_fecha_sel + timedelta(days=1))
                     hora_destino = st.selectbox("Nueva hora:", horas_30_min, key="hora_destino_reagendar")
                 with col_r3:
                     st.markdown("<br><br>", unsafe_allow_html=True)
@@ -1098,13 +1098,13 @@ else:
                     idx_origen_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_origen].tolist()
                     
                     if idx_origen_list:
-                        fila_origen = df_clinica.iloc[idx_origen_list[0]]
+                        fila_origen = df_clinica.iloc[idx_origen_list[0]].copy()
                         f_dest_str = fecha_destino.strftime("%Y-%m-%d")
                         
                         with st.spinner("Procesando reagendamiento..."):
                             es_mismo_dia = (f_dest_str == fecha_str)
                             
-                            df_target = df_clinica if es_mismo_dia else cargar_datos_clinica(f_dest_str)
+                            df_target = df_clinica.copy() if es_mismo_dia else cargar_datos_clinica(f_dest_str)
                             idx_dest_list = df_target.index[df_target['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_destino].tolist()
                             
                             if idx_dest_list:
@@ -1114,16 +1114,18 @@ else:
                                 if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
                                     st.error("⚠️ La hora de destino ya está ocupada.")
                                 else:
+                                    # 1. PEGAR EN EL DESTINO
                                     df_target.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
                                     df_target.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
                                     df_target.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
-                                    df_target.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen['Minutos de Viaje'])
+                                    df_target.at[idx_dest, 'Minutos de Viaje'] = int(fila_origen.get('Minutos de Viaje', 0))
                                     df_target.at[idx_dest, 'Pago'] = "No pagada ❌"
                                     df_target.at[idx_dest, 'Boleta'] = "-"
                                     df_target.at[idx_dest, 'N° Sesión'] = "" 
                                     
+                                    # 2. MODIFICAR EL ORIGEN (SI ES MOVER)
+                                    df_origen = df_target if es_mismo_dia else df_clinica.copy()
                                     if accion_reagendar == "Mover":
-                                        df_origen = df_target if es_mismo_dia else df_clinica
                                         idx_orig = idx_origen_list[0]
                                         df_origen.at[idx_orig, 'Paciente'] = ""
                                         df_origen.at[idx_orig, 'Detalle / Motivo'] = "-"
@@ -1133,19 +1135,45 @@ else:
                                         df_origen.at[idx_orig, 'Boleta'] = "-"
                                         df_origen.at[idx_orig, 'N° Sesión'] = ""
                                         
-                                    if es_mismo_dia:
-                                        exito_r = guardar_dia("Clinica", fecha_str, df_target)
-                                    else:
-                                        exito_r = guardar_dia("Clinica", f_dest_str, df_target)
-                                        if accion_reagendar == "Mover":
-                                            guardar_dia("Clinica", fecha_str, df_clinica)
+                                    # 3. GUARDADO ANTI-CHOQUE (Una sola vez a Google Sheets)
+                                    try:
+                                        hoja_segura = obtener_hoja("Clinica")
+                                        datos_seguros = hoja_segura.get_all_records()
+                                        df_bd = pd.DataFrame(datos_seguros) if datos_seguros else pd.DataFrame()
+                                        
+                                        if not df_bd.empty and 'Fecha' in df_bd.columns:
+                                            # Borrar el día de origen viejo
+                                            df_bd = df_bd[df_bd['Fecha'] != fecha_str]
+                                            # Si es distinto día, borrar el destino viejo también
+                                            if not es_mismo_dia:
+                                                df_bd = df_bd[df_bd['Fecha'] != f_dest_str]
+                                                
+                                        # Preparar bloque de origen
+                                        df_origen_guardar = df_origen.copy()
+                                        df_origen_guardar['Hora'] = df_origen_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+                                        df_origen_guardar.insert(0, 'Fecha', fecha_str)
+                                        
+                                        # Preparar bloque de destino y fusionar
+                                        if not es_mismo_dia:
+                                            df_target_guardar = df_target.copy()
+                                            df_target_guardar['Hora'] = df_target_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+                                            df_target_guardar.insert(0, 'Fecha', f_dest_str)
+                                            df_final = pd.concat([df_bd, df_origen_guardar, df_target_guardar], ignore_index=True)
+                                        else:
+                                            df_final = pd.concat([df_bd, df_origen_guardar], ignore_index=True)
                                             
+                                        guardar_tabla("Clinica", df_final)
+                                        exito_r = True
+                                    except Exception as e:
+                                        st.error(f"Error en base de datos: {e}")
+                                        exito_r = False
+                                        
                                     if ejecutar_barrido_billeteras():
                                         st.toast("⛽ ¡El Tanque cubrió la reagendación automáticamente!")
                                         
                                     if exito_r:
-                                        st.success("✅ ¡Listo! La cita ha sido reagendada.")
-                                        time.sleep(1)
+                                        st.success("✅ ¡Listo! La cita ha sido reagendada a la perfección.")
+                                        time.sleep(1.5)
                                         st.rerun()
                             else:
                                 st.error(f"⚠️ No se encontró la hora {hora_destino} en el día destino.")
