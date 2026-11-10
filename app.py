@@ -272,11 +272,11 @@ if st.session_state.app_vista == "calendario":
 
     # Leyenda visual renovada
     st.markdown("""
-    <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
-        <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
-        <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
-        <span style='color: #e74c3c;'>●</span> 3+ Pacientes
+    <div style='text-align: center; font-size: 0.95rem; font-weight: 700; color: #555; margin-top: 15px;'>
+        <span style='color: #09ab3b;'>●</span> Libre &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #0068c9;'>●</span> 1 Paciente &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #ffaa00;'>●</span> 2 Pacientes &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #ff2b2b;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
