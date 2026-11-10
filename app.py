@@ -253,13 +253,12 @@ if st.session_state.app_vista == "calendario":
                 detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                # APLICACIÓN DE COLORES NATIVOS MARKDOWN CON VIOLETA PARA 2 PACIENTES
                 if is_today:
                     texto_boton = f"**{day}**"
                 else:
                     if cant_pacs == 0: texto_boton = f":green[**{day}**]"
                     elif cant_pacs == 1: texto_boton = f":blue[**{day}**]"
-                    elif cant_pacs == 2: texto_boton = f":violet[**{day}**]"
+                    elif cant_pacs == 2: texto_boton = f":orange[**{day}**]"
                     else: texto_boton = f":red[**{day}**]"
 
                 btn_type = "primary" if is_today else "secondary"
@@ -276,7 +275,7 @@ if st.session_state.app_vista == "calendario":
     <div style='text-align: center; font-size: 0.9rem; font-weight: bold; color: #7f8c8d; margin-top: 15px;'>
         <span style='color: #2ecc71;'>●</span> Libre &nbsp;|&nbsp; 
         <span style='color: #3498db;'>●</span> 1 Paciente &nbsp;|&nbsp; 
-        <span style='color: #9b59b6;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
+        <span style='color: #ff9f43;'>●</span> 2 Pacientes &nbsp;|&nbsp; 
         <span style='color: #e74c3c;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
@@ -766,7 +765,7 @@ else:
                     continue
             df_clinica.at[index, 'Estado'] = "Libre 🟢"
 
-    # --- PESTAÑAS (ORDENADAS SEGÚN SOLICITUD) ---
+    # --- PESTAÑAS ---
     tab_semana, tab1, tab2, tab3, tab4 = st.tabs(["🗓️ Calendario Semanal", "🩺 Día a Día", "🕰️ Horario Personal", "📁 Fichas Clínicas", "📊 Dashboard"])
 
     with tab_semana:
@@ -1171,7 +1170,7 @@ else:
                                         st.rerun()
                             else:
                                 st.error(f"⚠️ No se encontró la hora {hora_destino} en el día destino.")
-                                
+
             with tab_del:
                 sesiones_activas_del = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
                 if sesiones_activas_del.empty:
@@ -1317,7 +1316,7 @@ else:
                 "Estado": st.column_config.TextColumn("Estado", disabled=True),
                 "N° Sesión": st.column_config.TextColumn("Sesión", help="Calculado auto."),
                 "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
-                "Abono ($)": st.column_config.TextColumn("Abono ($)", help="Escribe en miles (ej: 30)"),
+                "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
                 "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"], help="¿Emitiste Boleta de Honorarios para este ingreso?")
             }
         )
@@ -1683,3 +1682,231 @@ else:
                     col_vp1, col_vp2, col_vp3 = st.columns(3)
                     with col_vp1:
                         fecha_nueva_pauta = st.date_input("Fecha de venta:", value=date.today())
+                    with col_vp2:
+                        st.info(f"💰 Valor a cobrar: ${valor_actual_pauta:,.0f}".replace(",", "."))
+                    with col_vp3:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("🚀 Registrar Pauta", use_container_width=True, type="primary"):
+                            if valor_actual_pauta == 0:
+                                st.error("⚠️ Define el 'Valor Pauta Online' en la Ficha de abajo y guárdalo primero.")
+                            else:
+                                fecha_pauta_str = fecha_nueva_pauta.strftime("%Y-%m-%d")
+                                df_dia_pauta = cargar_datos_clinica(fecha_pauta_str)
+                                
+                                minuto_base = 0
+                                while f"23:{minuto_base:02d}" in df_dia_pauta['Hora'].values:
+                                    minuto_base += 1
+                                hora_final_pauta = f"23:{minuto_base:02d}"
+                                
+                                nueva_fila_pauta = pd.DataFrame([{
+                                    "Hora": hora_final_pauta, 
+                                    "Paciente": paciente_seleccionado, 
+                                    "Detalle / Motivo": "Pauta Online 💻",
+                                    "Dirección": "-", 
+                                    "Minutos de Viaje": 0, 
+                                    "Hora de Salida": "-", 
+                                    "Ruta Maps": "-", 
+                                    "Alarma": "-",
+                                    "Estado": "Entregada 📩", 
+                                    "N° Sesión": "Pauta", 
+                                    "Pago": "No pagada ❌",
+                                    "Abono ($)": "",
+                                    "Boleta": "-",
+                                    "Recordatorio": "-"
+                                }])
+                                df_dia_pauta = pd.concat([df_dia_pauta, nueva_fila_pauta], ignore_index=True)
+                                
+                                with st.spinner("Registrando venta en el sistema..."):
+                                    guardar_dia("Clinica", fecha_pauta_str, df_dia_pauta)
+                                    if ejecutar_barrido_billeteras():
+                                        st.toast("⛽ ¡El Tanque Mágico cubrió la Pauta automáticamente!")
+                                    st.success("✅ ¡Pauta registrada exitosamente!")
+                                    time.sleep(1.5)
+                                    st.rerun()
+
+                # --- ZONA DE PELIGRO: ELIMINAR PACIENTE ---
+                st.markdown("---")
+                with st.expander("⚠️ Zona de Peligro: Eliminar Paciente"):
+                    st.warning(f"¿Estás seguro de que deseas eliminar completamente a **{paciente_seleccionado}**? Esto borrará su ficha y eliminará su nombre de todas las atenciones agendadas e históricas en tu calendario.")
+                    if st.button("🚨 Eliminar Paciente Definitivamente", type="primary", use_container_width=True):
+                        with st.spinner("Borrando registros..."):
+                            df_f_del = cargar_tabla("Fichas")
+                            df_f_del = df_f_del[df_f_del['Paciente'].astype(str).str.strip().str.upper() != paciente_seleccionado.upper()]
+                            guardar_tabla("Fichas", df_f_del)
+                            
+                            df_c_del = cargar_tabla("Clinica")
+                            mask_del = df_c_del['Paciente'].astype(str).str.strip().str.upper() == paciente_seleccionado.upper()
+                            df_c_del.loc[mask_del, 'Paciente'] = ""
+                            df_c_del.loc[mask_del, 'Detalle / Motivo'] = "-"
+                            df_c_del.loc[mask_del, 'Dirección'] = ""
+                            df_c_del.loc[mask_del, 'Pago'] = "-"
+                            df_c_del.loc[mask_del, 'Abono ($)'] = ""
+                            df_c_del.loc[mask_del, 'Boleta'] = "-"
+                            df_c_del.loc[mask_del, 'N° Sesión'] = ""
+                            guardar_tabla("Clinica", df_c_del)
+                            
+                            st.success(f"✅ ¡{paciente_seleccionado} fue eliminado del sistema!")
+                            time.sleep(1.5)
+                            st.rerun()
+
+    with tab4:
+        st.header("📊 Dashboard Financiero")
+        
+        meses_nombres = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+        año_actual = date.today().year
+        
+        st.markdown("### 📅 Seleccionar Periodo")
+        col_m, col_a = st.columns(2)
+        with col_m:
+            mes_seleccionado = st.selectbox("Mes:", meses_nombres, index=st.session_state.app_fecha_sel.month - 1)
+        with col_a:
+            año_seleccionado = st.selectbox("Año:", [año_actual - 1, año_actual, año_actual + 1, año_actual + 2], index=1)
+            
+        mes_num = meses_nombres.index(mes_seleccionado) + 1
+        mes_dashboard = date(año_seleccionado, mes_num, 1)
+        
+        stats = calcular_dashboard_mensual(mes_dashboard)
+        
+        # Calcular Billeteras Activas Globales
+        df_fichas_billetera = cargar_tabla("Fichas")
+        if not df_fichas_billetera.empty and 'Billetera' in df_fichas_billetera.columns:
+            total_billetera_global = pd.to_numeric(df_fichas_billetera['Billetera'], errors='coerce').fillna(0).sum()
+        else:
+            total_billetera_global = 0.0
+            
+        # --- CÁLCULO SII INCORPORADO SÓLO CON BOLETA ---
+        tasa_sii_actual = obtener_tasa_sii(año_seleccionado)
+        impuesto_estimado = stats['ingresos_boleta'] * tasa_sii_actual
+        liquido_estimado = stats['ingresos'] - impuesto_estimado
+        
+        st.markdown(f"### 📊 Resultados de {mes_seleccionado} {año_seleccionado}")
+        col_d1, col_d2, col_d3, col_d4 = st.columns(4)
+        col_d1.metric("Atenciones totales", stats["total_sesiones"])
+        col_d2.metric("💰 Ingresos Totales Mes", f"${stats['ingresos']:,.0f}".replace(",", "."))
+        col_d3.metric("⏳ Deuda Pendiente", f"${stats['por_cobrar']:,.0f}".replace(",", "."))
+        col_d4.metric("💳 Tanques a Favor", f"${total_billetera_global:,.0f}".replace(",", "."), help="Dinero adelantado por pacientes aún no consumido")
+        
+        st.markdown("---")
+        st.markdown("### 🏛️ Proyección de Impuestos SII (Boletas de Honorarios)")
+        st.info(f"💡 Para el año {año_seleccionado}, la retención legal del SII es de **{tasa_sii_actual*100:.2f}%**. Esto solo se calcula sobre las sesiones que marcaste con `Sí 🧾` en la columna 'Boleta SII'.")
+        
+        col_sii1, col_sii2, col_sii3 = st.columns(3)
+        col_sii1.metric("Monto Declarado (Con Boleta)", f"${stats['ingresos_boleta']:,.0f}".replace(",", "."))
+        col_sii2.metric("🔴 Retención SII a Pagar", f"${impuesto_estimado:,.0f}".replace(",", "."))
+        col_sii3.metric("🟢 Tu Bolsillo Real (Líquido Total)", f"${liquido_estimado:,.0f}".replace(",", "."), help="Suma de tus ingresos sin boleta + ingresos con boleta descontando el impuesto.")
+
+        st.markdown("---")
+        
+        st.markdown("#### 🔍 Desglose de Contabilidad")
+        col_des1, col_des2 = st.columns(2)
+        with col_des1:
+            st.success(f"**Ingresos por Sesiones Clínicas:** ${stats['ingresos_sesiones']:,.0f}".replace(",", "."))
+            st.success(f"**Ingresos por Pautas Online:** ${stats['ingresos_pautas']:,.0f}".replace(",", "."))
+        with col_des2:
+            st.warning(f"**Deuda por Sesiones Clínicas:** ${stats['deuda_sesiones']:,.0f}".replace(",", "."))
+            st.warning(f"**Deuda por Pautas Online:** ${stats['deuda_pautas']:,.0f}".replace(",", "."))
+
+        st.markdown("---")
+        
+        st.markdown(f"### 📋 Detalle de Atenciones - {mes_seleccionado} {año_seleccionado}")
+        df_completo_dash = cargar_tabla("Clinica")
+        if not df_completo_dash.empty and 'Fecha' in df_completo_dash.columns:
+            prefijo_mes_sel = mes_dashboard.strftime("%Y-%m")
+            df_mes_det = df_completo_dash[df_completo_dash['Fecha'].astype(str).str.startswith(prefijo_mes_sel)].copy()
+            df_mes_det = df_mes_det[~df_mes_det['Detalle / Motivo'].isin(["Personal / Trámite 🛑", "Gimnasio 🏋️"])]
+            df_mes_det = df_mes_det[(df_mes_det['Paciente'].astype(str).str.strip() != "") & (df_mes_det['Paciente'].astype(str).str.strip().str.upper() != "ALMUERZO")]
+            
+            if not df_mes_det.empty:
+                mapa_val_dash = obtener_valor_por_paciente()
+                mapa_pau_dash = obtener_valor_pauta_por_paciente()
+                df_mes_det['Paciente_norm'] = df_mes_det['Paciente'].astype(str).str.strip().str.upper()
+                
+                df_mes_det['Hora'] = df_mes_det['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
+                if 'Abono ($)' not in df_mes_det.columns: df_mes_det['Abono ($)'] = ""
+                if 'Boleta' not in df_mes_det.columns: df_mes_det['Boleta'] = "-"
+                
+                def asignar_valor_str(row):
+                    if str(row['Detalle / Motivo']).strip() == "Pauta Online 💻":
+                        val = mapa_pau_dash.get(row['Paciente_norm'], 0.0)
+                    else:
+                        val = mapa_val_dash.get(row['Paciente_norm'], 0.0)
+                    return f"${val:,.0f}".replace(",", ".")
+                
+                df_mes_det['Costo Sesión'] = df_mes_det.apply(asignar_valor_str, axis=1)
+                
+                df_mostrar_dash = df_mes_det[['Fecha', 'Hora', 'Paciente', 'Detalle / Motivo', 'Costo Sesión', 'Pago', 'Abono ($)', 'Boleta']].sort_values(by=['Fecha', 'Hora'])
+                
+                st.markdown("💡 *Si editas el Pago, Abono o la emisión de Boleta aquí, se recalculará automáticamente tu contabilidad al guardar.*")
+                
+                df_editado_dash = st.data_editor(
+                    df_mostrar_dash,
+                    use_container_width=True,
+                    hide_index=True,
+                    key=f"editor_dash_{mes_seleccionado}_{año_seleccionado}",
+                    column_config={
+                        "Fecha": st.column_config.TextColumn("Fecha", disabled=True),
+                        "Hora": st.column_config.TextColumn("Hora", disabled=True),
+                        "Paciente": st.column_config.TextColumn("Paciente", disabled=True),
+                        "Detalle / Motivo": st.column_config.TextColumn("Motivo", disabled=True),
+                        "Costo Sesión": st.column_config.TextColumn("Valor Base ($)", disabled=True), 
+                        "Pago": st.column_config.SelectboxColumn("Pago", options=["No pagada ❌", "Pagada ✅", "Abono Parcial ⏳", "Descontar Billetera 💳", "Saldada con Billetera ✅", "Pagada con Billetera ✅", "Pagada (Excedente) ✅", "-"]),
+                        "Abono ($)": st.column_config.TextColumn("Abono Efectivo ($)", help="Escribe en miles (ej: 30)"),
+                        "Boleta": st.column_config.SelectboxColumn("Boleta SII", options=["Sí 🧾", "No 🚫", "-"])
+                    }
+                )
+                
+                if st.button("💾 Guardar Cambios del Mes", type="primary", use_container_width=True):
+                    with st.spinner("Guardando pagos..."):
+                        df_full_clinica_dash = cargar_tabla("Clinica")
+                        if 'Abono ($)' not in df_full_clinica_dash.columns: df_full_clinica_dash['Abono ($)'] = ""
+                        if 'Boleta' not in df_full_clinica_dash.columns: df_full_clinica_dash['Boleta'] = "-"
+                        
+                        for index, row in df_editado_dash.iterrows():
+                            hora_limpia = str(row['Hora']).replace("🔴 ", "").replace("🔴", "").str.strip()
+                            mask_clinica = (df_full_clinica_dash['Fecha'] == row['Fecha']) & \
+                                           (df_full_clinica_dash['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_limpia) & \
+                                           (df_full_clinica_dash['Paciente'].astype(str).str.strip().str.upper() == str(row['Paciente']).strip().upper())
+                                           
+                            if not df_full_clinica_dash[mask_clinica].empty:
+                                idx_clin = df_full_clinica_dash[mask_clinica].index[0]
+                                df_full_clinica_dash.at[idx_clin, 'Pago'] = row['Pago']
+                                df_full_clinica_dash.at[idx_clin, 'Boleta'] = row['Boleta']
+                                
+                                val_abono_parsed = parse_dinero(row['Abono ($)'])
+                                df_full_clinica_dash.at[idx_clin, 'Abono ($)'] = str(int(val_abono_parsed)) if val_abono_parsed > 0 else ""
+
+                        guardar_tabla("Clinica", df_full_clinica_dash)
+                        if ejecutar_barrido_billeteras():
+                            st.toast("⛽ 👋 El Tanque Mágico descontó sesiones impagas automáticamente!")
+                        st.success("✅ ¡Cambios guardados con éxito! Los números de arriba ya están actualizados.")
+                        time.sleep(1.5)
+                        st.rerun()
+            else:
+                st.info(f"No hay atenciones registradas para {mes_seleccionado} {año_seleccionado}.")
+        else:
+            st.info("No hay datos en la clínica aún.")
+
+        st.markdown("---")
+        
+        st.markdown(f"### 📈 Resumen Anual {año_seleccionado}")
+        
+        datos_anuales = []
+        for m in range(1, 13):
+            stats_m = calcular_dashboard_mensual(date(año_seleccionado, m, 1))
+            if stats_m["total_sesiones"] > 0 or stats_m["ingresos"] > 0 or stats_m["por_cobrar"] > 0:
+                datos_anuales.append({
+                    "Mes": meses_nombres[m-1],
+                    "Atenciones": stats_m["total_sesiones"],
+                    "Ingresos Totales": stats_m['ingresos'],
+                    "Deuda Pendiente": stats_m['por_cobrar'],
+                    "Retención SII Proyectada": stats_m['ingresos_boleta'] * tasa_sii_actual
+                })
+        
+        if datos_anuales:
+            df_anual = pd.DataFrame(datos_anuales)
+            df_anual_visual = df_anual.copy()
+            for col in ["Ingresos Totales", "Deuda Pendiente", "Retención SII Proyectada"]:
+                df_anual_visual[col] = df_anual_visual[col].apply(lambda x: f"${x:,.0f}".replace(",", "."))
+            st.dataframe(df_anual_visual, use_container_width=True, hide_index=True)
+        else:
+            st.info(f"No hay movimientos financieros registrados en el sistema durante {año_seleccionado}.")
