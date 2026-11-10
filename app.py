@@ -958,8 +958,8 @@ else:
             st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             btn_guardar_clinica = st.button("💾 Guardar Cambios", use_container_width=True, type="primary", key="btn_save_clinica")
         
-        with st.expander("⚡ Agendar Existente / Paquetes / Reagendar"):
-            tab_ex, tab_ag, tab_re = st.tabs(["➕ Un Paciente Existente", "🔄 Múltiples Sesiones", "✂️ Reagendar Cita"])
+        with st.expander("⚡ Agendar / Paquetes / Reagendar / Eliminar"):
+            tab_ex, tab_ag, tab_re, tab_del = st.tabs(["➕ Un Paciente Existente", "🔄 Múltiples Sesiones", "✂️ Reagendar Cita", "🗑️ Eliminar Cita"])
             
             with tab_ex:
                 lista_pacs = obtener_lista_pacientes()
@@ -1114,7 +1114,6 @@ else:
                                 if paciente_dest != "" and paciente_dest.upper() != "ALMUERZO":
                                     st.error("⚠️ La hora de destino ya está ocupada.")
                                 else:
-                                    # 1. PEGAR EN EL DESTINO
                                     df_target.at[idx_dest, 'Paciente'] = str(fila_origen['Paciente'])
                                     df_target.at[idx_dest, 'Detalle / Motivo'] = str(fila_origen['Detalle / Motivo'])
                                     df_target.at[idx_dest, 'Dirección'] = str(fila_origen['Dirección'])
@@ -1123,7 +1122,6 @@ else:
                                     df_target.at[idx_dest, 'Boleta'] = "-"
                                     df_target.at[idx_dest, 'N° Sesión'] = "" 
                                     
-                                    # 2. MODIFICAR EL ORIGEN (SI ES MOVER)
                                     df_origen = df_target if es_mismo_dia else df_clinica.copy()
                                     if accion_reagendar == "Mover":
                                         idx_orig = idx_origen_list[0]
@@ -1135,25 +1133,20 @@ else:
                                         df_origen.at[idx_orig, 'Boleta'] = "-"
                                         df_origen.at[idx_orig, 'N° Sesión'] = ""
                                         
-                                    # 3. GUARDADO ANTI-CHOQUE (Una sola vez a Google Sheets)
                                     try:
                                         hoja_segura = obtener_hoja("Clinica")
                                         datos_seguros = hoja_segura.get_all_records()
                                         df_bd = pd.DataFrame(datos_seguros) if datos_seguros else pd.DataFrame()
                                         
                                         if not df_bd.empty and 'Fecha' in df_bd.columns:
-                                            # Borrar el día de origen viejo
                                             df_bd = df_bd[df_bd['Fecha'] != fecha_str]
-                                            # Si es distinto día, borrar el destino viejo también
                                             if not es_mismo_dia:
                                                 df_bd = df_bd[df_bd['Fecha'] != f_dest_str]
                                                 
-                                        # Preparar bloque de origen
                                         df_origen_guardar = df_origen.copy()
                                         df_origen_guardar['Hora'] = df_origen_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
                                         df_origen_guardar.insert(0, 'Fecha', fecha_str)
                                         
-                                        # Preparar bloque de destino y fusionar
                                         if not es_mismo_dia:
                                             df_target_guardar = df_target.copy()
                                             df_target_guardar['Hora'] = df_target_guardar['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip()
@@ -1177,6 +1170,40 @@ else:
                                         st.rerun()
                             else:
                                 st.error(f"⚠️ No se encontró la hora {hora_destino} en el día destino.")
+
+            with tab_del:
+                sesiones_activas_del = df_clinica[(df_clinica['Paciente'].str.strip() != "") & (df_clinica['Paciente'].str.upper() != "ALMUERZO")]
+                if sesiones_activas_del.empty:
+                    st.info("🟢 No hay citas agendadas para este día.")
+                else:
+                    opciones_citas_del = ["-- Selecciona --"] + [f"{str(r['Hora']).replace('🔴 ', '')} - {r['Paciente']}" for i, r in sesiones_activas_del.iterrows()]
+                    col_d1, col_d2 = st.columns([3, 1])
+                    with col_d1:
+                        cita_eliminar = st.selectbox("Selecciona la cita a eliminar:", opciones_citas_del)
+                    with col_d2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        btn_eliminar_cita = st.button("🗑️ Eliminar Sesión", use_container_width=True, type="primary")
+                    
+                    if btn_eliminar_cita and cita_eliminar != "-- Selecciona --":
+                        hora_eliminar = cita_eliminar.split(" - ")[0].replace("🔴 ", "").replace("🔴", "").strip()
+                        idx_eliminar_list = df_clinica.index[df_clinica['Hora'].astype(str).str.replace("🔴 ", "").str.replace("🔴", "").str.strip() == hora_eliminar].tolist()
+                        
+                        if idx_eliminar_list:
+                            idx_elim = idx_eliminar_list[0]
+                            with st.spinner("Liberando la hora..."):
+                                df_clinica.at[idx_elim, 'Paciente'] = ""
+                                df_clinica.at[idx_elim, 'Detalle / Motivo'] = "-"
+                                df_clinica.at[idx_elim, 'Dirección'] = ""
+                                df_clinica.at[idx_elim, 'Minutos de Viaje'] = 0
+                                df_clinica.at[idx_elim, 'Pago'] = "-"
+                                df_clinica.at[idx_elim, 'Boleta'] = "-"
+                                df_clinica.at[idx_elim, 'N° Sesión'] = ""
+                                df_clinica.at[idx_elim, 'Abono ($)'] = ""
+                                
+                                guardar_dia("Clinica", fecha_str, df_clinica)
+                                st.success("✅ ¡Cita eliminada y bloque liberado exitosamente!")
+                                time.sleep(1)
+                                st.rerun()
 
         with st.expander("🔍 Buscador de Pacientes"):
             lista_pacientes_buscador = obtener_lista_pacientes()
