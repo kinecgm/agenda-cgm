@@ -244,6 +244,10 @@ if st.session_state.app_vista == "calendario":
             mapa_nombres_cal[f] = "  \n".join(lista_pacs)
 
     cal = calendar.monthcalendar(año_act, mes_act)
+    
+    # CSS dinámico para inyectar los colores brillantes exactos usando las keys de Streamlit
+    css_colores = "<style>\n"
+    
     for week_idx, week in enumerate(cal):
         cols = st.columns(7)
         for i, day in enumerate(week):
@@ -253,30 +257,39 @@ if st.session_state.app_vista == "calendario":
                 detalle_dia = mapa_nombres_cal.get(fecha_iter_str, "Día libre 🟢")
                 is_today = (date.today() == date(año_act, mes_act, day))
                 
-                if is_today:
-                    texto_boton = f"**{day}**"
-                else:
-                    if cant_pacs == 0: texto_boton = f":green[**{day}**]"
-                    elif cant_pacs == 1: texto_boton = f":blue[**{day}**]"
-                    elif cant_pacs == 2: texto_boton = f":orange[**{day}**]"
-                    else: texto_boton = f":red[**{day}**]"
+                # Volvemos a dejar solo el número para que quepa perfecto en el celular
+                texto_boton = f"**{day}**"
+                btn_key = f"d_{año_act}_{mes_act}_{day}"
+                
+                if not is_today:
+                    # Asignar los colores brillantes exactos
+                    if cant_pacs == 0: color_txt = "#00cc44"   # Verde brillante
+                    elif cant_pacs == 1: color_txt = "#0068c9" # Azul
+                    elif cant_pacs == 2: color_txt = "#ff9900" # Naranja brillante
+                    else: color_txt = "#ff2b2b"                # Rojo
+                    
+                    # Forzamos el color del texto de ese botón específico vía CSS
+                    css_colores += f".st-key-{btn_key} button p, .st-key-{btn_key} button strong {{ color: {color_txt} !important; }}\n"
 
                 btn_type = "primary" if is_today else "secondary"
 
-                if cols[i].button(texto_boton, key=f"d_{año_act}_{mes_act}_{day}", help=detalle_dia, use_container_width=True, type=btn_type):
+                if cols[i].button(texto_boton, key=btn_key, help=detalle_dia, use_container_width=True, type=btn_type):
                     st.session_state.app_fecha_sel = date(año_act, mes_act, day)
                     st.session_state.app_vista = "dia"
                     st.rerun()
             else: 
                 cols[i].button(" ", key=f"empty_{año_act}_{mes_act}_{week_idx}_{i}", disabled=True, help="", use_container_width=True)
 
-    # Leyenda visual renovada
+    css_colores += "</style>"
+    st.markdown(css_colores, unsafe_allow_html=True)
+
+    # Leyenda visual renovada (Sincronizada con el CSS dinámico brillante)
     st.markdown("""
     <div style='text-align: center; font-size: 0.95rem; font-weight: 700; color: #555; margin-top: 15px;'>
-        <span style='color: #00cc66;'>●</span> Libre &nbsp;&nbsp;|&nbsp;&nbsp; 
-        <span style='color: #2a59a8;'>●</span> 1 Paciente &nbsp;&nbsp;|&nbsp;&nbsp; 
-        <span style='color: #FFA500;'>●</span> 2 Pacientes &nbsp;&nbsp;|&nbsp;&nbsp; 
-        <span style='color: #9e2a2b;'>●</span> 3+ Pacientes
+        <span style='color: #00cc44;'>●</span> Libre &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #0068c9;'>●</span> 1 Paciente &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #ff9900;'>●</span> 2 Pacientes &nbsp;&nbsp;|&nbsp;&nbsp; 
+        <span style='color: #ff2b2b;'>●</span> 3+ Pacientes
     </div>
     """, unsafe_allow_html=True)
     
